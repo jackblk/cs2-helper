@@ -1,4 +1,4 @@
-name: released
+name: scan-released-files
 
 permissions:
   contents: read
