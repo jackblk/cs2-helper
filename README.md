@@ -1,6 +1,6 @@
 # CS2 Helper
 
-[![release](https://github.com/jackblk/cs2-helper/actions/workflows/release.yml/badge.svg)](https://github.com/jackblk/cs2-helper/actions/workflows/release.yml)
+[![release](https://github.com/jackblk/cs2-helper/actions/workflows/release.yml/badge.svg)](https://github.com/jackblk/cs2-helper/releases)
 
 An utility for accessibility in **Counter-Strike 2**. It automatically reduces **only CS2's** per-app volume during loud in-game events (death, flashbang, bomb, spectating) and restores it afterward.
 
