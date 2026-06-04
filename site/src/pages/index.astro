@@ -9,6 +9,11 @@ const KOFI_URL = "https://ko-fi.com/jackblk";
 const LATEST_RELEASE_API =
 	"https://api.github.com/repos/jackblk/cs2-helper/releases/latest";
 
+// Prefix public/ assets with the configured base so they resolve under
+// the GitHub Pages subpath (/cs2-helper/) as well as at root locally.
+const withBase = (path: string) =>
+	`${import.meta.env.BASE_URL}/${path}`.replace(/\/+/g, "/");
+
 const features = [
 	{
 		title: "Anti-cheat safe",
@@ -47,7 +52,7 @@ const faqs = [
 <html lang="en" class="dark">
 	<head>
 		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/svg+xml" href={withBase("favicon.svg")} />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
 		<title>CS2 Helper - auto-reduce Counter-Strike 2 volume</title>
@@ -61,7 +66,7 @@ const faqs = [
 			<!-- Hero -->
 			<header class="flex flex-col items-center text-center">
 				<img
-					src="/icon.png"
+					src={withBase("icon.png")}
 					alt="CS2 Helper icon"
 					width="80"
 					height="80"
@@ -131,7 +136,7 @@ const faqs = [
 					See it in action
 				</h2>
 				<img
-					src="/screenshot.png"
+					src={withBase("screenshot.png")}
 					alt="CS2 Helper app window showing status and settings"
 					class="w-full rounded-xl border border-border shadow-2xl"
 					loading="lazy"
@@ -162,7 +167,7 @@ const faqs = [
 				class="flex flex-col items-center gap-5 border-t border-border pt-10 text-center"
 			>
 				<a href={KOFI_URL} target="_blank" rel="noopener">
-					<img src="/kofi.webp" alt="Support me on Ko-fi" width="200" />
+					<img src={withBase("kofi.webp")} alt="Support me on Ko-fi" width="200" />
 				</a>
 				<p class="text-sm text-muted-foreground">
 					Built by{" "}
