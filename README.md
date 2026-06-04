@@ -50,6 +50,12 @@ Yes why not, it's just a tool. I'm a dev myself, I came up with the architecture
 
 Feel free to create an issue or, better, a pull request. I can't promise I'll merge every contribution, but I'm open to new features and improvements.
 
+## Supporters
+
+<a href="https://ko-fi.com/jackblk" target="_blank">
+  <img src="./docs/support/kofi.webp" alt="buy me a coffee" width="200">
+</a>
+
 ## How it works
 
 ```mermaid
