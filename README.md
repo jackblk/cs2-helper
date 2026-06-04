@@ -44,7 +44,7 @@ Not planned at the moment, as the audio backend is Windows-specific. I also don'
 
 #### Did you use AI?
 
-Yes why not, it's just a tool. I'm a dev myself, I came up with the architechture, decicions. Feel free to contribute if you want to add features or improve the codebase.
+Yes why not, it's just a tool. I'm a dev myself, I came up with the architecture, decisions. Feel free to contribute if you want to add features or improve the codebase.
 
 #### I want to add X feature
 
