@@ -1,0 +1,201 @@
+---
+import "../styles/global.css";
+
+const DOWNLOAD_URL =
+	"https://github.com/jackblk/cs2-helper/releases/latest/download/CS2.Helper-x64.exe";
+const RELEASES_URL = "https://github.com/jackblk/cs2-helper/releases";
+const REPO_URL = "https://github.com/jackblk/cs2-helper";
+const KOFI_URL = "https://ko-fi.com/jackblk";
+const LATEST_RELEASE_API =
+	"https://api.github.com/repos/jackblk/cs2-helper/releases/latest";
+
+// Prefix public/ assets with the configured base so they resolve under
+// the GitHub Pages subpath (/cs2-helper/) as well as at root locally.
+const withBase = (path: string) =>
+	`${import.meta.env.BASE_URL}/${path}`.replace(/\/+/g, "/");
+
+const features = [
+	{
+		title: "Anti-cheat safe",
+		body: "No interaction with the game. Only official Valve GSI events and OS audio APIs.",
+	},
+	{
+		title: "Easy to use",
+		body: "One-click setup. Auto reduce & restore volume of only CS2's audio. Other apps unaffected.",
+	},
+	{
+		title: "Configurable",
+		body: "Tune volume targets and per-event behavior to match how you play.",
+	},
+	{
+		title: "Free and open source",
+		body: "Audit or build the app yourself.",
+	},
+];
+
+const faqs = [
+	{
+		q: "Will this get me banned (VAC / Faceit…)?",
+		a: "No. It uses official Game State Integration (GSI) provided by Valve, which is read-only and designed for third-party apps. It never interacts with the game in any way that would trigger anti-cheat systems.",
+	},
+	{
+		q: "Is this safe to use?",
+		a: "Yes. The full source is open. You can build it yourself, and a VirusTotal scan is attached to every release.",
+	},
+	{
+		q: "Does it support Linux or macOS?",
+		a: "Not at the moment, the audio backend is Windows-specific. The app is built with Tauri, so cross-platform support is possible. Contributions are welcome.",
+	},
+];
+---
+
+<html lang="en" class="dark">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href={withBase("favicon.svg")} />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<title>CS2 Helper - auto-reduce Counter-Strike 2 volume</title>
+		<meta
+			name="description"
+			content="A Windows utility that automatically lowers only Counter-Strike 2's volume during loud events — death, flashbangs, bomb blasts, spectating — then restores it. Anti-cheat safe."
+		/>
+	</head>
+	<body class="min-h-screen bg-background text-foreground antialiased">
+		<div class="mx-auto flex max-w-3xl flex-col gap-24 px-6 py-20 sm:py-28">
+			<!-- Hero -->
+			<header class="flex flex-col items-center text-center">
+				<img
+					src={withBase("icon.png")}
+					alt="CS2 Helper icon"
+					width="80"
+					height="80"
+					class="mb-6 rounded-2xl shadow-lg"
+				/>
+				<h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
+					CS2 Helper
+				</h1>
+				<p class="mt-5 max-w-xl text-lg text-muted-foreground">
+					Protect your ears by automatically lowering <span class="font-medium text-foreground"
+						>only Counter-Strike 2's</span
+					> volume during loud in-game events:
+					<br />
+					death, flashbangs, bomb blasts, spectating.
+				</p>
+
+				<div class="mt-8 flex flex-wrap items-stretch justify-center gap-3">
+					<a
+						href={DOWNLOAD_URL}
+						class="inline-flex min-h-11 flex-col items-center justify-center rounded-md bg-primary px-6 py-1.5 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						<span>Download for Windows</span>
+						<span
+							id="latest-version"
+							class="text-xs font-normal text-primary-foreground/70"
+						></span>
+					</a>
+					<a
+						href={REPO_URL}
+						target="_blank"
+						rel="noopener"
+						class="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-transparent px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						View on GitHub
+					</a>
+				</div>
+				<p class="mt-4 text-sm text-muted-foreground">
+					Windows 11 only · free &amp; open source ·{" "}
+					<a
+						href={RELEASES_URL}
+						class="underline underline-offset-4 hover:text-foreground"
+						>other releases</a
+					>
+				</p>
+			</header>
+
+			<!-- Features -->
+			<section>
+				<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight">
+					Features
+				</h2>
+				<div class="grid gap-4 sm:grid-cols-2">
+					{
+						features.map((f) => (
+							<div class="rounded-xl border border-border bg-card p-5">
+								<h3 class="font-medium text-card-foreground">{f.title}</h3>
+								<p class="mt-1.5 text-sm text-muted-foreground">{f.body}</p>
+							</div>
+						))
+					}
+				</div>
+			</section>
+
+			<!-- Screenshot -->
+			<section class="flex flex-col items-center">
+				<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight">
+					See it in action
+				</h2>
+				<img
+					src={withBase("screenshot.png")}
+					alt="CS2 Helper app window showing status and settings"
+					class="w-full rounded-xl border border-border shadow-2xl"
+					loading="lazy"
+				/>
+			</section>
+
+			<!-- FAQ -->
+			<section>
+				<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight">
+					FAQ
+				</h2>
+				<div class="flex flex-col gap-3">
+					{
+						faqs.map((item) => (
+							<details class="group rounded-xl border border-border bg-card p-5">
+								<summary class="marker:hidden cursor-pointer list-none font-medium text-card-foreground">
+									{item.q}
+								</summary>
+								<p class="mt-3 text-sm text-muted-foreground">{item.a}</p>
+							</details>
+						))
+					}
+				</div>
+			</section>
+
+			<!-- Footer -->
+			<footer
+				class="flex flex-col items-center gap-5 border-t border-border pt-10 text-center"
+			>
+				<a href={KOFI_URL} target="_blank" rel="noopener">
+					<img src={withBase("kofi.webp")} alt="Support me on Ko-fi" width="200" />
+				</a>
+				<p class="text-sm text-muted-foreground">
+					Built by{" "}
+					<a
+						href="https://github.com/jackblk"
+						target="_blank"
+						rel="noopener"
+						class="underline underline-offset-4 hover:text-foreground"
+						>jackblk</a
+					>. Not affiliated with Valve.
+				</p>
+			</footer>
+		</div>
+
+		<script is:inline define:vars={{ LATEST_RELEASE_API }}>
+			// Fetch the latest release tag at runtime and label the download button.
+			fetch(LATEST_RELEASE_API, {
+				headers: { Accept: "application/vnd.github+json" },
+			})
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data) => {
+					const tag = data && data.tag_name;
+					const el = document.getElementById("latest-version");
+					if (tag && el) el.textContent = `v${tag}`;
+				})
+				.catch(() => {
+					// leave the label empty — the button still works
+				});
+		</script>
+	</body>
+</html>

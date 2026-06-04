@@ -192,6 +192,7 @@ dist-ssr
 *.sln
 *.sw?
 
+**/.astro
 
 tmp/
 .claude/settings.json

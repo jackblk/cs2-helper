@@ -23,7 +23,7 @@ Or choose another release from [Releases Page](https://github.com/jackblk/cs2-he
 
 Currently only supports Win 11.
 
-![main ss](./docs/screenshots/main.jpg)
+![main ss](./docs/screenshots/screenshot.png)
 
 ### FAQ
 
