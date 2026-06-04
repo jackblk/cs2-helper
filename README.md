@@ -4,6 +4,8 @@
 
 An utility for accessibility in **Counter-Strike 2**. It automatically reduces **only CS2's** per-app volume during loud in-game events (death, flashbang, bomb, spectating) and restores it afterward.
 
+Homepage: https://jackblk.github.io/cs2-helper/
+
 Download latest release here: [CS2.Helper-x64.exe](https://github.com/jackblk/cs2-helper/releases/latest/download/CS2.Helper-x64.exe)
 
 Or choose another release from [Releases Page](https://github.com/jackblk/cs2-helper/releases).
