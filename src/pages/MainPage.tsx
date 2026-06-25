@@ -35,7 +35,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { AppConfig, Config, EngineSnapshot, GsiStatus } from "@/lib/types";
+import type {
+	AppConfig,
+	Config,
+	EngineSnapshot,
+	GsiStatus,
+	OverlayConfig,
+} from "@/lib/types";
 
 const FRESH_MS = 10000;
 
@@ -158,6 +164,8 @@ export function MainPage() {
 	const [saved, setSaved] = useState<Draft | null>(null);
 	// null = follow install state (collapsed once done); a bool = user override.
 	const [setupOpen, setSetupOpen] = useState<boolean | null>(null);
+	const [editing, setEditing] = useState(false);
+	const [c4Text, setC4Text] = useState("");
 	// Latest `saved`, read inside the seed effect without making it a dependency
 	// (which would re-fire — and loop — on every setSaved).
 	const savedRef = useRef<Draft | null>(null);
@@ -167,6 +175,9 @@ export function MainPage() {
 		const unlisten = listen<EngineSnapshot>("engine:update", (e) =>
 			setSnap(e.payload),
 		);
+		const unEdit = listen<boolean>("overlay:edit", (e) =>
+			setEditing(e.payload),
+		);
 		invoke<EngineSnapshot>("engine_status").then(setSnap, () => {});
 		const refreshGsi = () =>
 			invoke<GsiStatus>("gsi_status").then(setGsi, () => {});
@@ -175,6 +186,7 @@ export function MainPage() {
 		return () => {
 			clearInterval(timer);
 			unlisten.then((fn) => fn());
+			unEdit.then((fn) => fn());
 		};
 	}, []);
 
@@ -203,6 +215,13 @@ export function MainPage() {
 			() => {},
 		);
 	}, [snap?.config]);
+
+	// Keep the local text in sync when c4_timer_s changes externally
+	// (discard, reset, reload), mirroring EventRow's durText pattern.
+	const c4Timer = draft?.app.overlay.c4_timer_s;
+	useEffect(() => {
+		if (c4Timer != null) setC4Text(String(c4Timer));
+	}, [c4Timer]);
 
 	const paused = snap?.paused ?? false;
 	const fresh =
@@ -255,6 +274,73 @@ export function MainPage() {
 	};
 
 	const discard = () => setDraft(saved);
+
+	const patchOverlay = (f: (o: OverlayConfig) => OverlayConfig) =>
+		setDraft((d) =>
+			d ? { ...d, app: { ...d.app, overlay: f(d.app.overlay) } } : d,
+		);
+
+	const editOverlay = async () => {
+		try {
+			await invoke("overlay_edit_start");
+			toast.message("Drag the overlay where you want it, then click Done.");
+		} catch (e) {
+			toast.error("Couldn't edit overlay", { description: String(e) });
+		}
+	};
+
+	const doneEditOverlay = async () => {
+		try {
+			const app = await invoke<AppConfig>("overlay_edit_finish");
+			// Re-baseline position so it is not flagged as an unsaved change.
+			setSaved((s) => (s ? { ...s, app } : s));
+			setDraft((d) =>
+				d
+					? {
+							...d,
+							app: {
+								...d.app,
+								overlay: {
+									...d.app.overlay,
+									pos_x: app.overlay.pos_x,
+									pos_y: app.overlay.pos_y,
+								},
+							},
+						}
+					: d,
+			);
+			toast.success("Overlay position saved");
+		} catch (e) {
+			toast.error("Couldn't save position", { description: String(e) });
+		}
+	};
+
+	const resetOverlayPosition = async () => {
+		try {
+			const app = await invoke<AppConfig>("overlay_reset_position");
+			// Re-baseline both saved and draft so the cleared position is not
+			// flagged as an unsaved change.
+			setSaved((s) => (s ? { ...s, app } : s));
+			setDraft((d) =>
+				d
+					? {
+							...d,
+							app: {
+								...d.app,
+								overlay: {
+									...d.app.overlay,
+									pos_x: app.overlay.pos_x,
+									pos_y: app.overlay.pos_y,
+								},
+							},
+						}
+					: d,
+			);
+			toast.success("Overlay position reset to default");
+		} catch (e) {
+			toast.error("Couldn't reset position", { description: String(e) });
+		}
+	};
 
 	const resetDefaults = async () => {
 		try {
@@ -368,7 +454,7 @@ export function MainPage() {
 							</CardDescription>
 						</div>
 						<Button
-							variant={paused ? "default" : "secondary"}
+							variant={paused ? "default" : "destructive"}
 							onClick={() => invoke("set_paused", { paused: !paused })}
 						>
 							{paused ? "Resume" : "Pause"}
@@ -479,6 +565,88 @@ export function MainPage() {
 
 							<Separator />
 
+							<div className="space-y-4">
+								<div className="space-y-1">
+									<div className="flex items-center gap-2">
+										<Switch
+											checked={draft.app.overlay.enabled}
+											onCheckedChange={(v) =>
+												patchOverlay((o) => ({ ...o, enabled: v }))
+											}
+										/>
+										<Label>Bomb Timer Overlay</Label>
+									</div>
+									<p className="text-s text-muted-foreground">
+										Shows a bomb defuse timer over CS2. Requires
+										fullscreen-windowed (borderless) — exclusive fullscreen
+										hides any overlay.
+									</p>
+								</div>
+
+								<div className="flex items-center gap-3">
+									<Label className="w-36 shrink-0">Size</Label>
+									<Slider
+										value={[draft.app.overlay.scale * 100]}
+										min={50}
+										max={250}
+										step={5}
+										disabled={!draft.app.overlay.enabled}
+										onValueChange={([v]) =>
+											patchOverlay((o) => ({ ...o, scale: v / 100 }))
+										}
+										className="min-w-0 flex-1"
+									/>
+									<span className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground">
+										{draft.app.overlay.scale.toFixed(2)}x
+									</span>
+								</div>
+
+								<div className="flex items-center gap-3">
+									<Label className="w-36 shrink-0">Bomb timer</Label>
+									<Input
+										type="number"
+										min={1}
+										step={1}
+										disabled={!draft.app.overlay.enabled}
+										value={c4Text}
+										onChange={(e) => {
+											const text = e.currentTarget.value;
+											setC4Text(text);
+											const n = Number(text);
+											if (Number.isFinite(n) && n > 0)
+												patchOverlay((o) => ({ ...o, c4_timer_s: n }));
+										}}
+										className="h-8 w-20"
+										aria-label="Bomb fuse seconds"
+									/>
+									<span className="text-xs text-muted-foreground">sec</span>
+								</div>
+
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										variant="outline"
+										disabled={!saved?.app.overlay.enabled}
+										onClick={editing ? doneEditOverlay : editOverlay}
+									>
+										{editing ? "Done" : "Edit position"}
+									</Button>
+									<Button
+										variant="outline"
+										disabled={!saved?.app.overlay.enabled || editing}
+										onClick={resetOverlayPosition}
+									>
+										Reset position
+									</Button>
+								</div>
+								{!saved?.app.overlay.enabled && (
+									<p className="text-xs text-muted-foreground">
+										Enable and Save the overlay first, then position it.
+									</p>
+								)}
+							</div>
+
+							<Separator />
+
 							<div className="space-y-2">
 								<div className="flex items-center gap-2">
 									<Checkbox
@@ -517,7 +685,7 @@ export function MainPage() {
 									</Label>
 								</div>
 							</div>
-
+							<Separator />
 							<div className="flex items-center gap-2">
 								<Button variant="outline" onClick={resetDefaults}>
 									Reset to defaults

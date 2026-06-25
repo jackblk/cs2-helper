@@ -55,6 +55,7 @@ Planned Rust module layout under `src-tauri/src/` (per the spec): `audio/`, `gsi
 * ✅ `src-tauri/src/events/` — event engine (M3). Pure core (`core.rs`: state diff → death/flash/bomb/spectator triggers → min-volume target) + engine thread (`runtime.rs`: mpsc loop, `recv_timeout` tick for timers and poll-while-ducked session recovery, audio behind `AudioControl` trait, restore-on-exit). `engine:update` Tauri event + `engine_status` command feed the debug panel.
 * ✅ M4.1 tray/autostart/window lifecycle (`src-tauri/src/autostart/`, tray + window wiring in `lib.rs`): engine pause, tray menu, hide-to-tray, single-instance, Startup-folder shortcut, `[app]` table. Commands: `set_paused` / `get_app_settings`.
 * ✅ M4.2 main-mode UI (`src/pages/`, `src/components/Layout.tsx`): `HashRouter` with a Main page (status + setup checklist + editable settings, Save/Discard, reset-on-warnings) and a Debug page (the former diagnostics panel). In-app edits persist via the `save_config` command (reuses the M4.1 serializer). Shared TS types in `src/lib/types.ts`.
+* ✅ Overlay: transparent always-on-top `overlay` window (`src-tauri/src/overlay.rs`, route in `src/pages/Overlay.tsx`) showing a bomb defuse timer from GSI plant state + `player.team`/`defusekit`. Config `[overlay]` in `AppConfig`. Commands: `overlay_edit_start` / `overlay_edit_finish`.
 * ⬜ M5 hotkey override.
 
 ## Key design decisions

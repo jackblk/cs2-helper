@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useState } from "react";
+import { emit } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useState } from "react";
 import { EngineDebug } from "@/components/EngineDebug";
 import { GsiDebug } from "@/components/GsiDebug";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -30,12 +32,24 @@ type AudioSession = {
 	muted: boolean;
 };
 
+// Module-level so the preview choice survives navigating away from the Debug
+// page (the component unmounts, but the toggle should stay as the user left it).
+let previewEnabled = false;
+
 export function DebugPage() {
 	const [sessions, setSessions] = useState<AudioSession[]>([]);
 	const [target, setTarget] = useState("cs2.exe");
 	const [volume, setVolume] = useState(0.5);
 	const [status, setStatus] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [preview, setPreview] = useState(previewEnabled);
+
+	// Mirror the preview tickbox to the overlay so placement/size can be checked
+	// without a live plant. Persists across navigation; not cleared on unmount.
+	useEffect(() => {
+		previewEnabled = preview;
+		emit("overlay:preview", preview);
+	}, [preview]);
 
 	const run = useCallback(async (fn: () => Promise<void>) => {
 		setBusy(true);
@@ -89,6 +103,26 @@ export function DebugPage() {
 					list sessions, then set its volume by process name.
 				</p>
 			</header>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Overlay preview</CardTitle>
+					<CardDescription>
+						Force the bomb-timer overlay to show its idle placeholder so you can
+						check placement and size without a live plant.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id="overlay-preview"
+							checked={preview}
+							onCheckedChange={(v) => setPreview(v === true)}
+						/>
+						<Label htmlFor="overlay-preview">Show overlay preview</Label>
+					</div>
+				</CardContent>
+			</Card>
 
 			<GsiDebug />
 

@@ -26,6 +26,31 @@ pub struct TimedEventCfg {
     pub duration_ms: u64,
 }
 
+/// In-game overlay settings (the `[overlay]` table). `pos_*` in logical pixels;
+/// `None` means default top-center placement. `scale` multiplies the base size.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct OverlayConfig {
+    pub enabled: bool,
+    pub c4_timer_s: f32,
+    pub safety_margin_s: f32,
+    pub pos_x: Option<f64>,
+    pub pos_y: Option<f64>,
+    pub scale: f32,
+}
+
+impl Default for OverlayConfig {
+    fn default() -> Self {
+        OverlayConfig {
+            enabled: true,
+            c4_timer_s: 40.0,
+            safety_margin_s: 0.0,
+            pos_x: None,
+            pos_y: None,
+            scale: 1.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     pub death: TimedEventCfg,
@@ -66,6 +91,9 @@ pub struct AppConfig {
     pub start_with_windows: bool,
     /// Start hidden in the tray instead of showing the window.
     pub start_minimized: bool,
+    /// `#[serde(default)]` so UI JSON / older files without `[overlay]` still load.
+    #[serde(default)]
+    pub overlay: OverlayConfig,
 }
 
 impl Default for AppConfig {
@@ -73,6 +101,7 @@ impl Default for AppConfig {
         AppConfig {
             start_with_windows: false,
             start_minimized: false,
+            overlay: OverlayConfig::default(),
         }
     }
 }
@@ -81,7 +110,7 @@ impl Default for AppConfig {
 /// `parse(serialize(c, a))` yields `(c, a, [])`.
 pub fn serialize(config: &Config, app: &AppConfig) -> String {
     let b = |v: bool| if v { "true" } else { "false" };
-    format!(
+    let base = format!(
         r#"# CS2 Helper configuration.
 # Volumes are absolute targets on the 0.0-1.0 scale (0.15 = 15%).
 # When several reductions are active the smallest volume wins.
@@ -129,7 +158,30 @@ start_minimized = {start_minimized}
         spectator_volume = config.spectator.volume,
         start_with_windows = b(app.start_with_windows),
         start_minimized = b(app.start_minimized),
-    )
+    );
+
+    let overlay_pos = match (app.overlay.pos_x, app.overlay.pos_y) {
+        (Some(x), Some(y)) => format!("pos_x = {x}\npos_y = {y}\n"),
+        _ => String::new(),
+    };
+    let overlay_section = format!(
+        "\n# In-game bomb defuse timer overlay.\n\
+         # enabled: show the overlay window. c4_timer_s: bomb fuse seconds (40 default).\n\
+         # safety_margin_s: subtract from remaining time before coloring (0 = pure math).\n\
+         # scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for top-center).\n\
+         [overlay]\n\
+         enabled = {enabled}\n\
+         c4_timer_s = {c4:.1}\n\
+         safety_margin_s = {margin:.1}\n\
+         scale = {scale:.2}\n\
+         {pos}",
+        enabled = b(app.overlay.enabled),
+        c4 = app.overlay.c4_timer_s,
+        margin = app.overlay.safety_margin_s,
+        scale = app.overlay.scale,
+        pos = overlay_pos,
+    );
+    format!("{base}{overlay_section}")
 }
 
 /// The commented default config written on first run and by `reset`.
@@ -226,6 +278,13 @@ pub fn parse(text: &str) -> (Config, AppConfig, Vec<String>) {
                 };
                 apply_app(table, &mut app, &mut warnings);
             }
+            "overlay" => {
+                let Some(table) = value.as_table() else {
+                    warnings.push("\"overlay\" is not a table; ignored".to_string());
+                    continue;
+                };
+                apply_overlay(table, &mut app.overlay, &mut warnings);
+            }
             other => warnings.push(format!("unknown table [{other}] ignored")),
         }
     }
@@ -244,10 +303,64 @@ fn apply_app(table: &toml::Table, out: &mut AppConfig, warnings: &mut Vec<String
     }
 }
 
+fn apply_overlay(table: &toml::Table, out: &mut OverlayConfig, warnings: &mut Vec<String>) {
+    for (key, value) in table {
+        match key.as_str() {
+            "enabled" => set_bool(value, "overlay", key, &mut out.enabled, warnings),
+            "c4_timer_s" => set_pos_float(value, key, &mut out.c4_timer_s, warnings),
+            "safety_margin_s" => set_nonneg_float(value, key, &mut out.safety_margin_s, warnings),
+            "scale" => set_scale(value, key, &mut out.scale, warnings),
+            "pos_x" => set_opt_float(value, key, &mut out.pos_x, warnings),
+            "pos_y" => set_opt_float(value, key, &mut out.pos_y, warnings),
+            _ => warnings.push(format!("unknown key overlay.{key} ignored")),
+        }
+    }
+}
+
+fn as_f64(value: &toml::Value) -> Option<f64> {
+    value.as_float().or_else(|| value.as_integer().map(|i| i as f64))
+}
+
+fn set_pos_float(value: &toml::Value, key: &str, out: &mut f32, warnings: &mut Vec<String>) {
+    match as_f64(value) {
+        Some(v) if v > 0.0 => *out = v as f32,
+        _ => warnings.push(format!(
+            "overlay.{key}: expected a number > 0, got {value}; keeping {out}"
+        )),
+    }
+}
+
+fn set_nonneg_float(value: &toml::Value, key: &str, out: &mut f32, warnings: &mut Vec<String>) {
+    match as_f64(value) {
+        Some(v) if v >= 0.0 => *out = v as f32,
+        _ => warnings.push(format!(
+            "overlay.{key}: expected a number >= 0, got {value}; keeping {out}"
+        )),
+    }
+}
+
+fn set_scale(value: &toml::Value, key: &str, out: &mut f32, warnings: &mut Vec<String>) {
+    match as_f64(value) {
+        Some(v) if (0.25..=4.0).contains(&v) => *out = v as f32,
+        _ => warnings.push(format!(
+            "overlay.{key}: expected a number in 0.25..=4.0, got {value}; keeping {out}"
+        )),
+    }
+}
+
+fn set_opt_float(value: &toml::Value, key: &str, out: &mut Option<f64>, warnings: &mut Vec<String>) {
+    match as_f64(value) {
+        Some(v) if v.is_finite() => *out = Some(v),
+        _ => warnings.push(format!(
+            "overlay.{key}: expected a finite number, got {value}; ignored"
+        )),
+    }
+}
+
 fn apply_event(table: &toml::Table, name: &str, out: &mut EventCfg, warnings: &mut Vec<String>) {
     for (key, value) in table {
         match key.as_str() {
-            "enabled" => set_bool(value, name, key, &mut out.enabled, warnings),
+            "enabled" => set_bool(value, &format!("audio.{name}"), key, &mut out.enabled, warnings),
             "volume" => set_volume(value, name, key, &mut out.volume, warnings),
             _ => warnings.push(format!("unknown key audio.{name}.{key} ignored")),
         }
@@ -262,7 +375,7 @@ fn apply_timed(
 ) {
     for (key, value) in table {
         match key.as_str() {
-            "enabled" => set_bool(value, name, key, &mut out.enabled, warnings),
+            "enabled" => set_bool(value, &format!("audio.{name}"), key, &mut out.enabled, warnings),
             "volume" => set_volume(value, name, key, &mut out.volume, warnings),
             "duration_ms" => set_duration(value, name, key, &mut out.duration_ms, warnings),
             _ => warnings.push(format!("unknown key audio.{name}.{key} ignored")),
@@ -272,7 +385,7 @@ fn apply_timed(
 
 fn set_bool(
     value: &toml::Value,
-    section: &str,
+    prefix: &str,
     key: &str,
     out: &mut bool,
     warnings: &mut Vec<String>,
@@ -280,7 +393,7 @@ fn set_bool(
     match value.as_bool() {
         Some(b) => *out = b,
         None => warnings.push(format!(
-            "audio.{section}.{key}: expected true/false, got {value}; keeping {out}"
+            "{prefix}.{key}: expected true/false, got {value}; keeping {out}"
         )),
     }
 }
@@ -292,10 +405,7 @@ fn set_volume(
     out: &mut f32,
     warnings: &mut Vec<String>,
 ) {
-    let number = value
-        .as_float()
-        .or_else(|| value.as_integer().map(|i| i as f64));
-    match number {
+    match as_f64(value) {
         Some(v) if (0.0..=1.0).contains(&v) => *out = v as f32,
         _ => warnings.push(format!(
             "audio.{section}.{key}: expected a number in 0.0..=1.0, got {value}; keeping {out}"
@@ -321,6 +431,41 @@ fn set_duration(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlay_defaults_and_round_trip() {
+        let o = OverlayConfig::default();
+        assert!(o.enabled);
+        assert_eq!(o.c4_timer_s, 40.0);
+        assert_eq!(o.safety_margin_s, 0.0);
+        assert_eq!(o.scale, 1.0);
+        assert_eq!(o.pos_x, None);
+        assert_eq!(o.pos_y, None);
+
+        // Round-trip with a saved position and non-default scale.
+        let mut a = AppConfig::default();
+        a.overlay.enabled = false;
+        a.overlay.scale = 1.5;
+        a.overlay.pos_x = Some(100.0);
+        a.overlay.pos_y = Some(40.0);
+        let (_c, a2, warnings) = parse(&serialize(&Config::default(), &a));
+        assert_eq!(a2.overlay, a.overlay);
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    #[test]
+    fn overlay_unknown_key_and_bad_type_warn() {
+        let (_c, a, warnings) =
+            parse("[overlay]\nenabled = \"yes\"\nscale = 1.25\nfoo = 1\n");
+        assert!(a.overlay.enabled, "bad bool keeps default true");
+        assert_eq!(a.overlay.scale, 1.25);
+        assert!(warnings.iter().any(|w| w.contains("overlay.enabled")));
+        assert!(warnings.iter().any(|w| w.contains("overlay.foo")));
+        assert!(
+            warnings.iter().all(|w| !w.contains("audio.overlay")),
+            "overlay warnings must not be prefixed audio.: {warnings:?}"
+        );
+    }
 
     #[test]
     fn app_table_parses_and_absence_is_default_without_warning() {
@@ -364,6 +509,7 @@ mod tests {
         let a = AppConfig {
             start_with_windows: true,
             start_minimized: true,
+            overlay: OverlayConfig::default(),
         };
         let (c2, a2, warnings) = parse(&serialize(&c, &a));
         assert_eq!(c2, c);

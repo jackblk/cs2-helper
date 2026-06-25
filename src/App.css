@@ -136,3 +136,10 @@ body,
 		@apply font-sans;
 	}
 }
+
+/* Overlay window: fully transparent so only the badge is visible over the game. */
+html.overlay-mode,
+html.overlay-mode body,
+html.overlay-mode #root {
+	background: transparent !important;
+}

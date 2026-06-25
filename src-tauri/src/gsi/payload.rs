@@ -51,6 +51,7 @@ pub struct Round {
 pub struct Player {
     pub steamid: Option<String>,
     pub name: Option<String>,
+    pub team: Option<String>,
     pub activity: Option<String>,
     pub state: Option<PlayerState>,
 }
@@ -61,6 +62,7 @@ pub struct PlayerState {
     pub armor: Option<i32>,
     pub helmet: Option<bool>,
     pub flashed: Option<i32>,
+    pub defusekit: Option<bool>,
 }
 
 /// Flattened, merged view of the game — what the event engine (M3) and the
@@ -90,6 +92,12 @@ pub struct GameState {
     pub armor: Option<i32>,
     pub helmet: Option<bool>,
     pub flashed: Option<i32>,
+    /// "CT" / "T" for the player block currently described (local or spectated).
+    pub team: Option<String>,
+    /// True when the described CT player holds a defuse kit. Absent for T / no
+    /// kit. Non-sticky: mirrors the latest `player.state` block, since CS2 omits
+    /// `defusekit` once the kit is gone (it never sends `false`).
+    pub defusekit: Option<bool>,
 }
 
 impl GameState {
@@ -126,6 +134,9 @@ impl GameState {
             if player.activity.is_some() {
                 self.activity = player.activity.clone();
             }
+            if player.team.is_some() {
+                self.team = player.team.clone();
+            }
             if let Some(state) = &player.state {
                 if state.health.is_some() {
                     self.health = state.health;
@@ -139,6 +150,10 @@ impl GameState {
                 if state.flashed.is_some() {
                     self.flashed = state.flashed;
                 }
+                // Non-sticky, like `bomb`/`win_team`: CS2 omits `defusekit` once
+                // the kit is gone (it never sends `false`), so mirror the state
+                // block exactly rather than latching a stale kit.
+                self.defusekit = state.defusekit;
             }
         }
         if let (Some(a), Some(b)) = (&self.provider_steamid, &self.player_steamid) {
@@ -273,6 +288,41 @@ pub mod tests {
         gs.apply(&spectating);
         assert!(!gs.is_local_player);
         assert_eq!(gs.health, Some(100));
+    }
+
+    #[test]
+    fn apply_merges_team_and_defusekit() {
+        let p: GsiPayload = serde_json::from_str(
+            r#"{ "provider": { "steamid": "A" },
+                 "player": { "steamid": "A", "team": "CT",
+                             "state": { "health": 100, "defusekit": true } } }"#,
+        )
+        .unwrap();
+        let mut gs = GameState::default();
+        gs.apply(&p);
+        assert_eq!(gs.team.as_deref(), Some("CT"));
+        assert_eq!(gs.defusekit, Some(true));
+    }
+
+    #[test]
+    fn defusekit_is_non_sticky() {
+        let mut gs = GameState::default();
+        gs.apply(
+            &serde_json::from_str(
+                r#"{ "player": { "steamid": "A", "state": { "health": 100, "defusekit": true } } }"#,
+            )
+            .unwrap(),
+        );
+        assert_eq!(gs.defusekit, Some(true));
+        // Next payload's state block omits defusekit (kit used/lost): must clear,
+        // not latch the stale `true`.
+        gs.apply(
+            &serde_json::from_str(
+                r#"{ "player": { "steamid": "A", "state": { "health": 80 } } }"#,
+            )
+            .unwrap(),
+        );
+        assert_eq!(gs.defusekit, None);
     }
 
     #[test]

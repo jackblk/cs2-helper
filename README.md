@@ -27,6 +27,16 @@ Currently only supports Win 11.
 
 ![main ss](./docs/screenshots/screenshot.png)
 
+### In-game overlay
+
+A bomb defuse timer drawn over CS2. When the C4 is planted, a small overlay appears and counts down to detonation, color-coded so you can read it at a glance.
+
+* **Green / red**: red means run (a defuse can no longer finish in time); green means a defuse might still finish (not a guarantee).
+* **Informational / approximate**: CS2 adds a small random detonation delay and the exact plant time is not in GSI, so treat the timer as a guide, not an exact clock.
+* **Requires fullscreen-windowed / borderless**: exclusive fullscreen hides any external overlay.
+* **Anti-cheat safe**: a separate floating OS window driven only by official GSI events, with no injection or memory reads.
+* **On by default**: configure it on the Main page (enable, size, bomb timer, and drag-to-position).
+
 ### FAQ
 
 #### Will this get me banned (VAC/Faceit...)?

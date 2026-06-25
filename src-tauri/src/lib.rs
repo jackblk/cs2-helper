@@ -11,6 +11,7 @@ mod autostart;
 mod config;
 mod events;
 mod gsi;
+mod overlay;
 
 /// Managed state: the engine handle (shared with the GSI callback).
 struct Engine(Arc<events::runtime::EngineHandle>);
@@ -92,6 +93,7 @@ struct ConfigPayload {
 /// Re-read config.toml and push it to the engine. Returns the loaded config.
 #[tauri::command]
 fn reload_config(
+    app_handle: tauri::AppHandle,
     engine: tauri::State<'_, Engine>,
     path: tauri::State<'_, ConfigPath>,
     app: tauri::State<'_, AppSettings>,
@@ -101,6 +103,7 @@ fn reload_config(
     *app.0.lock().unwrap() = app_cfg;
     #[cfg(windows)]
     let _ = autostart::set_enabled(app_cfg.start_with_windows);
+    overlay::reconcile(&app_handle, &app_cfg.overlay);
     ConfigPayload {
         config: cfg,
         app: app_cfg,
@@ -111,6 +114,7 @@ fn reload_config(
 /// Back up config.toml, restore defaults, push to the engine. Returns defaults.
 #[tauri::command]
 fn reset_config(
+    app_handle: tauri::AppHandle,
     engine: tauri::State<'_, Engine>,
     path: tauri::State<'_, ConfigPath>,
     app: tauri::State<'_, AppSettings>,
@@ -121,6 +125,7 @@ fn reset_config(
     *app.0.lock().unwrap() = app_cfg;
     #[cfg(windows)]
     let _ = autostart::set_enabled(app_cfg.start_with_windows);
+    overlay::reconcile(&app_handle, &app_cfg.overlay);
     Ok(ConfigPayload {
         config: cfg,
         app: app_cfg,
@@ -163,6 +168,7 @@ fn get_app_settings(app: tauri::State<'_, AppSettings>) -> config::AppConfig {
 fn save_config(
     config: config::Config,
     app: config::AppConfig,
+    app_handle: tauri::AppHandle,
     engine: tauri::State<'_, Engine>,
     path: tauri::State<'_, ConfigPath>,
     settings: tauri::State<'_, AppSettings>,
@@ -172,7 +178,56 @@ fn save_config(
     *settings.0.lock().unwrap() = app;
     #[cfg(windows)]
     let _ = autostart::set_enabled(app.start_with_windows);
+    overlay::reconcile(&app_handle, &app.overlay);
     Ok(())
+}
+
+/// Enter overlay edit mode (window becomes draggable, not click-through).
+#[tauri::command]
+fn overlay_edit_start(app_handle: tauri::AppHandle) -> Result<(), String> {
+    overlay::edit_start(&app_handle)
+}
+
+/// Finish overlay edit mode: persist the dragged position to config and return
+/// the updated app settings so the UI can re-baseline without a phantom diff.
+#[tauri::command]
+fn overlay_edit_finish(
+    app_handle: tauri::AppHandle,
+    path: tauri::State<'_, ConfigPath>,
+    settings: tauri::State<'_, AppSettings>,
+) -> Result<config::AppConfig, String> {
+    let (x, y) = overlay::edit_finish(&app_handle)?;
+    let mut app_cfg = *settings.0.lock().unwrap();
+    app_cfg.overlay.pos_x = Some(x);
+    app_cfg.overlay.pos_y = Some(y);
+    let cfg = engine_config(&app_handle);
+    config::write(&path.0, &cfg, &app_cfg)?;
+    *settings.0.lock().unwrap() = app_cfg;
+    Ok(app_cfg)
+}
+
+/// Reset the overlay to its default position: clear the saved x/y, persist, and
+/// reconcile so the live window snaps back to bottom-center. Returns the updated
+/// app settings so the UI can re-baseline.
+#[tauri::command]
+fn overlay_reset_position(
+    app_handle: tauri::AppHandle,
+    path: tauri::State<'_, ConfigPath>,
+    settings: tauri::State<'_, AppSettings>,
+) -> Result<config::AppConfig, String> {
+    let mut app_cfg = *settings.0.lock().unwrap();
+    app_cfg.overlay.pos_x = None;
+    app_cfg.overlay.pos_y = None;
+    let cfg = engine_config(&app_handle);
+    config::write(&path.0, &cfg, &app_cfg)?;
+    *settings.0.lock().unwrap() = app_cfg;
+    overlay::reconcile(&app_handle, &app_cfg.overlay);
+    Ok(app_cfg)
+}
+
+/// The engine's current audio Config (used when persisting app-only changes).
+fn engine_config(app: &tauri::AppHandle) -> config::Config {
+    app.state::<Engine>().0.snapshot().config.unwrap_or_default()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -239,10 +294,26 @@ pub fn run() {
 
             let window = app.get_webview_window("main").expect("main window exists");
 
+            // Create the in-game overlay window if enabled.
+            {
+                let overlay_cfg = app.state::<AppSettings>().0.lock().unwrap().overlay;
+                overlay::reconcile(app.handle(), &overlay_cfg);
+            }
+
             // Show now unless the user opted to start minimized in the tray.
+            // When minimized there is no window to confirm the app launched, so
+            // emit a notification the same way close-to-tray does.
             if !app.state::<AppSettings>().0.lock().unwrap().start_minimized {
                 let _ = window.show();
                 let _ = window.set_focus();
+            } else {
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("CS2 Helper")
+                    .body("Started in the tray. Click the tray icon to open.")
+                    .show();
             }
 
             // Close (X) hides to the tray instead of quitting; the engine keeps
@@ -359,6 +430,7 @@ pub fn run() {
             // CS2" depends on GSI freshness (time-based), so poll once a second.
             let paused_for_tick = app.state::<Paused>().0.clone();
             let gsi_for_tick = app.state::<gsi::SharedGsi>().inner().clone();
+            let tick_app = app.handle().clone();
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 let paused = *paused_for_tick.lock().unwrap();
@@ -374,6 +446,21 @@ pub fn run() {
                 };
                 let _ = status_i.set_text(label);
                 let _ = pause_i.set_text(if paused { "Resume" } else { "Pause" });
+
+                // Overlay watchdog: the always-on-top overlay can be torn down by
+                // the OS (fullscreen/resolution changes, GPU surface loss) and is
+                // never restored on its own. If it should be up but the window is
+                // gone, recreate it. No-op while it already exists.
+                let want_overlay = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
+                if want_overlay.enabled
+                    && tick_app.get_webview_window(overlay::OVERLAY_LABEL).is_none()
+                {
+                    let app_for_main = tick_app.clone();
+                    let _ = tick_app.run_on_main_thread(move || {
+                        let cfg = app_for_main.state::<AppSettings>().0.lock().unwrap().overlay;
+                        overlay::reconcile(&app_for_main, &cfg);
+                    });
+                }
             });
 
             Ok(())
@@ -392,7 +479,10 @@ pub fn run() {
             open_config_dir,
             set_paused,
             get_app_settings,
-            save_config
+            save_config,
+            overlay_edit_start,
+            overlay_edit_finish,
+            overlay_reset_position
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -10,9 +10,19 @@ export type Config = {
 	spectator: EventCfg;
 };
 
+export type OverlayConfig = {
+	enabled: boolean;
+	c4_timer_s: number;
+	safety_margin_s: number;
+	pos_x: number | null;
+	pos_y: number | null;
+	scale: number;
+};
+
 export type AppConfig = {
 	start_with_windows: boolean;
 	start_minimized: boolean;
+	overlay: OverlayConfig;
 };
 
 export type ActiveReduction = { kind: string; volume: number };
@@ -51,6 +61,8 @@ export type GameState = {
 	armor: number | null;
 	helmet: boolean | null;
 	flashed: number | null;
+	team: string | null;
+	defusekit: boolean | null;
 };
 
 export type GsiUpdate = { raw: unknown; state: GameState };
