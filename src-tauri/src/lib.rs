@@ -447,18 +447,19 @@ pub fn run() {
                 let _ = status_i.set_text(label);
                 let _ = pause_i.set_text(if paused { "Resume" } else { "Pause" });
 
-                // Overlay watchdog: the always-on-top overlay can be torn down by
-                // the OS (fullscreen/resolution changes, GPU surface loss) and is
-                // never restored on its own. If it should be up but the window is
-                // gone, recreate it. No-op while it already exists.
+                // Overlay watchdog: the always-on-top overlay can be torn down,
+                // hidden, or dropped behind a fullscreen game by the OS
+                // (fullscreen/resolution changes, GPU surface loss) and is never
+                // restored on its own. Re-assert it every tick — recreate if the
+                // window was destroyed, otherwise re-show + re-claim topmost.
+                // No-op while disabled. (`ensure_alive` deliberately does not
+                // reposition, so this is safe during overlay edit mode.)
                 let want_overlay = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
-                if want_overlay.enabled
-                    && tick_app.get_webview_window(overlay::OVERLAY_LABEL).is_none()
-                {
+                if want_overlay.enabled {
                     let app_for_main = tick_app.clone();
                     let _ = tick_app.run_on_main_thread(move || {
                         let cfg = app_for_main.state::<AppSettings>().0.lock().unwrap().overlay;
-                        overlay::reconcile(&app_for_main, &cfg);
+                        overlay::ensure_alive(&app_for_main, &cfg);
                     });
                 }
             });

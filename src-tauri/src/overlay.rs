@@ -79,11 +79,40 @@ pub fn reconcile(app: &tauri::AppHandle, cfg: &OverlayConfig) {
             let _ = win.close();
         }
         (true, Some(win)) => {
+            let _ = win.show();
+            let _ = win.set_always_on_top(true);
             let _ = position(&win, cfg);
         }
         (false, None) => {}
     }
     let _ = app.emit("overlay:config", cfg);
+}
+
+/// Watchdog repair (runs ~1/s on the main thread): keep an enabled overlay
+/// present, shown, and topmost. The OS can hide the window or drop it behind a
+/// fullscreen game WITHOUT destroying it, so `reconcile`'s create path (which
+/// only fires when the window is gone) never sees those cases. Re-assert the
+/// volatile properties every tick; recreate only if the window was actually
+/// torn down. Deliberately does NOT reposition: that would fight the user mid-
+/// drag during overlay edit mode.
+pub fn ensure_alive(app: &tauri::AppHandle, cfg: &OverlayConfig) {
+    if !cfg.enabled {
+        return;
+    }
+    match app.get_webview_window(OVERLAY_LABEL) {
+        None => {
+            let _ = create(app, cfg);
+        }
+        Some(win) => {
+            if !win.is_visible().unwrap_or(true) {
+                let _ = win.show();
+            }
+            // Cheap and focus-safe (set_always_on_top uses SWP_NOACTIVATE):
+            // re-claims topmost even when the window is still "visible" but the
+            // game has covered it.
+            let _ = win.set_always_on_top(true);
+        }
+    }
 }
 
 /// Enter edit mode: stop ignoring the cursor so the user can drag the window,
