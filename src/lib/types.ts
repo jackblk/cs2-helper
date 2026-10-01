@@ -71,3 +71,19 @@ export type GameState = {
 };
 
 export type GsiUpdate = { raw: unknown; state: GameState };
+
+export type Settings = { config: Config; app: AppConfig };
+
+export type ConfigPayload = Settings & { warnings: string[] };
+
+export type Rect = { x: number; y: number; width: number; height: number };
+
+// Logical px. `x`/`y`/`scale` are the overlay's geometry when editing began.
+export type OverlayEditSession = {
+	monitor: Rect;
+	x: number;
+	y: number;
+	scale: number;
+};
+
+export type OverlayEditResult = { x: number; y: number; scale: number };

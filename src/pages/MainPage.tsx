@@ -44,14 +44,13 @@ import type {
 	HotkeysConfig,
 	OverlayConfig,
 } from "@/lib/types";
+import { pct } from "@/lib/utils";
 
 const FRESH_MS = 10000;
 
 // How long the overlay keeps showing a resized sample after the Size slider
 // stops moving, before it returns to its saved size and hides.
 const SIZE_PREVIEW_MS = 2000;
-
-const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 type Draft = { config: Config; app: AppConfig };
 

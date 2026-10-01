@@ -11,8 +11,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import type { EngineSnapshot, EventCfg, TimedEventCfg } from "@/lib/types";
-
-const pct = (v: number) => `${Math.round(v * 100)}%`;
+import { pct } from "@/lib/utils";
 
 const timestamp = (atMs: number) => {
 	const d = new Date(atMs);
