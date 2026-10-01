@@ -41,7 +41,7 @@ export function createSettingsStore<T>({
 
 	const set = (patch: Partial<StoreSnapshot<T>>) => {
 		const current =
-			saved == null ? null : pending.reduce((s, p) => p.update(s), saved);
+			saved == null ? null : pending.reduce<T>((s, p) => p.update(s), saved);
 		snapshot = { ...snapshot, ...patch, current };
 		for (const listener of listeners) listener();
 	};
