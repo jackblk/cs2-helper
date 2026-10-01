@@ -115,6 +115,22 @@ pub fn ensure_alive(app: &tauri::AppHandle, cfg: &OverlayConfig) {
     }
 }
 
+/// Live size preview from the settings slider (unsaved): resize to `scale` and
+/// show a sample reading so the user sees the result. `None` restores the
+/// saved size and hides the sample. No-op while the overlay window is closed.
+pub fn preview_scale(app: &tauri::AppHandle, saved: &OverlayConfig, scale: Option<f32>) {
+    let Some(win) = app.get_webview_window(OVERLAY_LABEL) else {
+        return;
+    };
+    let mut cfg = *saved;
+    if let Some(s) = scale {
+        cfg.scale = s;
+    }
+    let _ = position(&win, &cfg);
+    let _ = app.emit("overlay:config", cfg);
+    let _ = app.emit("overlay:sample", scale.is_some());
+}
+
 /// Enter edit mode: stop ignoring the cursor so the user can drag the window,
 /// and tell the overlay UI to show its move handle.
 pub fn edit_start(app: &tauri::AppHandle) -> Result<(), String> {

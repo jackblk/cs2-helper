@@ -263,6 +263,18 @@ fn overlay_reset_position(
     Ok(app_cfg)
 }
 
+/// Preview an unsaved overlay size (settings slider): `Some(scale)` resizes the
+/// overlay and shows a sample reading; `None` restores the saved size.
+#[tauri::command]
+fn overlay_preview_scale(
+    scale: Option<f32>,
+    app_handle: tauri::AppHandle,
+    settings: tauri::State<'_, AppSettings>,
+) {
+    let saved = settings.0.lock().unwrap().overlay;
+    overlay::preview_scale(&app_handle, &saved, scale);
+}
+
 /// The engine's current audio Config (used when persisting app-only changes).
 fn engine_config(app: &tauri::AppHandle) -> config::Config {
     app.state::<Engine>().0.snapshot().config.unwrap_or_default()
@@ -538,6 +550,7 @@ pub fn run() {
             overlay_edit_start,
             overlay_edit_finish,
             overlay_reset_position,
+            overlay_preview_scale,
             hotkey_capture_start,
             hotkey_capture_end
         ])

@@ -47,6 +47,10 @@ import type {
 
 const FRESH_MS = 10000;
 
+// How long the overlay keeps showing a resized sample after the Size slider
+// stops moving, before it returns to its saved size and hides.
+const SIZE_PREVIEW_MS = 2000;
+
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 type Draft = { config: Config; app: AppConfig };
@@ -344,6 +348,12 @@ export function MainPage() {
 	};
 
 	const dirty = draft != null && saved != null && !eq(draft, saved);
+	// Edit mode positions the window at its saved size, so an unsaved size
+	// would not be reflected: require saving it first.
+	const sizeUnsaved =
+		draft != null &&
+		saved != null &&
+		draft.app.overlay.scale !== saved.app.overlay.scale;
 
 	const patchConfig = (f: (c: Config) => Config) =>
 		setDraft((d) => (d ? { ...d, config: f(d.config) } : d));
@@ -381,6 +391,30 @@ export function MainPage() {
 					}
 				: d,
 		);
+
+	// Live size preview: resize the overlay to the unsaved scale with a sample
+	// reading, then restore the saved size once the slider has been idle.
+	const sizePreviewTimer = useRef<number | null>(null);
+	const previewScale = (scale: number) => {
+		// Repositioning during edit mode would undo the user's unsaved drag.
+		if (editing) return;
+		invoke("overlay_preview_scale", { scale }).catch(() => {});
+		if (sizePreviewTimer.current != null)
+			clearTimeout(sizePreviewTimer.current);
+		sizePreviewTimer.current = window.setTimeout(() => {
+			sizePreviewTimer.current = null;
+			invoke("overlay_preview_scale", { scale: null }).catch(() => {});
+		}, SIZE_PREVIEW_MS);
+	};
+	// Leaving the page mid-preview must not leave the overlay resized.
+	useEffect(
+		() => () => {
+			if (sizePreviewTimer.current == null) return;
+			clearTimeout(sizePreviewTimer.current);
+			invoke("overlay_preview_scale", { scale: null }).catch(() => {});
+		},
+		[],
+	);
 
 	const editOverlay = async () => {
 		try {
@@ -693,9 +727,10 @@ export function MainPage() {
 										max={250}
 										step={5}
 										disabled={!draft.app.overlay.enabled}
-										onValueChange={([v]) =>
-											patchOverlay((o) => ({ ...o, scale: v / 100 }))
-										}
+										onValueChange={([v]) => {
+											patchOverlay((o) => ({ ...o, scale: v / 100 }));
+											previewScale(v / 100);
+										}}
 										className="min-w-0 flex-1"
 									/>
 									<span className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground">
@@ -727,7 +762,9 @@ export function MainPage() {
 								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										variant="outline"
-										disabled={!saved?.app.overlay.enabled}
+										disabled={
+											!saved?.app.overlay.enabled || (!editing && sizeUnsaved)
+										}
 										onClick={editing ? doneEditOverlay : editOverlay}
 									>
 										{editing ? "Done" : "Edit position"}
@@ -743,6 +780,11 @@ export function MainPage() {
 								{!saved?.app.overlay.enabled && (
 									<p className="text-xs text-muted-foreground">
 										Enable and Save the overlay first, then position it.
+									</p>
+								)}
+								{saved?.app.overlay.enabled && !editing && sizeUnsaved && (
+									<p className="text-xs text-muted-foreground">
+										Save the new size first, then position it.
 									</p>
 								)}
 							</div>

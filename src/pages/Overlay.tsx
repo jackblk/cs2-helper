@@ -23,12 +23,18 @@ const DEFAULT_OVERLAY: OverlayConfig = {
 // Show the badge for a short grace period after detonation so 0.0 is visible.
 const GRACE_MS = 1500;
 
+// Reading shown while the settings Size slider previews a new size, so the
+// user sees a realistic badge instead of the dim placeholder.
+const SAMPLE_S = 32.5;
+
 export function Overlay() {
 	const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_OVERLAY);
 	const [editing, setEditing] = useState(false);
 	// Preview mode: the Debug page is open, so show the idle placeholder even
 	// without a plant. Off during normal play (overlay only appears on a plant).
 	const [preview, setPreview] = useState(false);
+	// Size preview from the settings slider (see SAMPLE_S).
+	const [sample, setSample] = useState(false);
 	const [state, setState] = useState<GameState | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
 
@@ -51,6 +57,9 @@ export function Overlay() {
 		const unPreview = listen<boolean>("overlay:preview", (e) =>
 			setPreview(e.payload),
 		);
+		const unSample = listen<boolean>("overlay:sample", (e) =>
+			setSample(e.payload),
+		);
 		const unGsi = listen<GsiUpdate>("gsi:update", (e) =>
 			setState(e.payload.state),
 		);
@@ -58,6 +67,7 @@ export function Overlay() {
 			unCfg.then((f) => f());
 			unEdit.then((f) => f());
 			unPreview.then((f) => f());
+			unSample.then((f) => f());
 			unGsi.then((f) => f());
 		};
 	}, []);
@@ -109,14 +119,18 @@ export function Overlay() {
 		return () => window.removeEventListener("mousedown", onMouseDown);
 	}, [editing]);
 
-	// Show only while a plant is counting down, while positioning, or while the
-	// Debug page is open (preview). Otherwise the overlay stays hidden in play.
-	const show = editing || preview || remaining != null;
+	// Show only while a plant is counting down, while positioning, while the
+	// Debug page is open (preview), or while a new size is being previewed.
+	// Otherwise the overlay stays hidden in play.
+	const show = editing || preview || sample || remaining != null;
 	if (!show) return null;
 
-	// No plant in progress (and not positioning): a dim idle placeholder so the
+	// A live plant wins; otherwise the size preview shows a sample reading.
+	const shown = remaining ?? (sample && !editing ? SAMPLE_S : null);
+
+	// Nothing to show (and not positioning): a dim idle placeholder so the
 	// user can confirm where the overlay sits before the round.
-	const idle = !editing && remaining == null;
+	const idle = !editing && shown == null;
 
 	const color =
 		remaining == null
@@ -146,12 +160,12 @@ export function Overlay() {
 				)}
 			>
 				<div className="text-4xl font-bold leading-none">
-					{remaining == null ? "--.-" : remaining.toFixed(1)}
+					{shown == null ? "--.-" : shown.toFixed(1)}
 				</div>
 				<div className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
 					{editing
 						? "drag to move"
-						: remaining == null
+						: shown == null
 							? "bomb timer"
 							: color === "red"
 								? "run"
