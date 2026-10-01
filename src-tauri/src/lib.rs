@@ -11,6 +11,7 @@ mod autostart;
 mod config;
 mod events;
 mod gsi;
+mod hotkey;
 mod overlay;
 
 /// Managed state: the engine handle (shared with the GSI callback).
@@ -98,9 +99,12 @@ fn reload_config(
     path: tauri::State<'_, ConfigPath>,
     app: tauri::State<'_, AppSettings>,
 ) -> ConfigPayload {
-    let (cfg, app_cfg, warnings) = config::load_or_create(&path.0);
+    let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
+    if let Err(e) = hotkey::apply(&app_handle, &app_cfg.hotkeys) {
+        warnings.push(e);
+    }
     engine.0.set_config(cfg, warnings.clone());
-    *app.0.lock().unwrap() = app_cfg;
+    *app.0.lock().unwrap() = app_cfg.clone();
     #[cfg(windows)]
     let _ = autostart::set_enabled(app_cfg.start_with_windows);
     overlay::reconcile(&app_handle, &app_cfg.overlay);
@@ -120,9 +124,12 @@ fn reset_config(
     app: tauri::State<'_, AppSettings>,
 ) -> Result<ConfigPayload, String> {
     config::reset(&path.0)?;
-    let (cfg, app_cfg, warnings) = config::load_or_create(&path.0);
+    let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
+    if let Err(e) = hotkey::apply(&app_handle, &app_cfg.hotkeys) {
+        warnings.push(e);
+    }
     engine.0.set_config(cfg, warnings.clone());
-    *app.0.lock().unwrap() = app_cfg;
+    *app.0.lock().unwrap() = app_cfg.clone();
     #[cfg(windows)]
     let _ = autostart::set_enabled(app_cfg.start_with_windows);
     overlay::reconcile(&app_handle, &app_cfg.overlay);
@@ -155,10 +162,37 @@ fn set_paused(paused: bool, engine: tauri::State<'_, Engine>, flag: tauri::State
     *flag.0.lock().unwrap() = paused;
 }
 
+/// Flip the global pause (tray Pause/Resume item and the pause hotkey).
+/// `try_state`: the hotkey can fire before setup has managed the state.
+fn toggle_paused(app: &tauri::AppHandle) {
+    let (Some(engine), Some(flag)) = (app.try_state::<Engine>(), app.try_state::<Paused>()) else {
+        return;
+    };
+    let next = !*flag.0.lock().unwrap();
+    engine.0.set_paused(next);
+    *flag.0.lock().unwrap() = next;
+}
+
+/// Release the hotkeys while the UI records a new one.
+#[tauri::command]
+fn hotkey_capture_start(app_handle: tauri::AppHandle) -> Result<(), String> {
+    hotkey::suspend(&app_handle)
+}
+
+/// Re-register the saved hotkeys after the UI finishes recording.
+#[tauri::command]
+fn hotkey_capture_end(
+    app_handle: tauri::AppHandle,
+    settings: tauri::State<'_, AppSettings>,
+) -> Result<(), String> {
+    let cfg = settings.0.lock().unwrap().hotkeys.clone();
+    hotkey::apply(&app_handle, &cfg)
+}
+
 /// Current app-level settings (the `[app]` table).
 #[tauri::command]
 fn get_app_settings(app: tauri::State<'_, AppSettings>) -> config::AppConfig {
-    *app.0.lock().unwrap()
+    app.0.lock().unwrap().clone()
 }
 
 /// Persist UI-edited config straight to config.toml (M4.2), push it to the
@@ -173,9 +207,13 @@ fn save_config(
     path: tauri::State<'_, ConfigPath>,
     settings: tauri::State<'_, AppSettings>,
 ) -> Result<(), String> {
+    // Register the hotkeys first: if a key is taken, keep the old ones and
+    // save nothing, so the file never holds a key that does not work.
+    let prev_hotkeys = settings.0.lock().unwrap().hotkeys.clone();
+    hotkey::apply_or_revert(&app_handle, &app.hotkeys, &prev_hotkeys)?;
     config::write(&path.0, &config, &app)?;
     engine.0.set_config(config, Vec::new());
-    *settings.0.lock().unwrap() = app;
+    *settings.0.lock().unwrap() = app.clone();
     #[cfg(windows)]
     let _ = autostart::set_enabled(app.start_with_windows);
     overlay::reconcile(&app_handle, &app.overlay);
@@ -197,12 +235,12 @@ fn overlay_edit_finish(
     settings: tauri::State<'_, AppSettings>,
 ) -> Result<config::AppConfig, String> {
     let (x, y) = overlay::edit_finish(&app_handle)?;
-    let mut app_cfg = *settings.0.lock().unwrap();
+    let mut app_cfg = settings.0.lock().unwrap().clone();
     app_cfg.overlay.pos_x = Some(x);
     app_cfg.overlay.pos_y = Some(y);
     let cfg = engine_config(&app_handle);
     config::write(&path.0, &cfg, &app_cfg)?;
-    *settings.0.lock().unwrap() = app_cfg;
+    *settings.0.lock().unwrap() = app_cfg.clone();
     Ok(app_cfg)
 }
 
@@ -215,12 +253,12 @@ fn overlay_reset_position(
     path: tauri::State<'_, ConfigPath>,
     settings: tauri::State<'_, AppSettings>,
 ) -> Result<config::AppConfig, String> {
-    let mut app_cfg = *settings.0.lock().unwrap();
+    let mut app_cfg = settings.0.lock().unwrap().clone();
     app_cfg.overlay.pos_x = None;
     app_cfg.overlay.pos_y = None;
     let cfg = engine_config(&app_handle);
     config::write(&path.0, &cfg, &app_cfg)?;
-    *settings.0.lock().unwrap() = app_cfg;
+    *settings.0.lock().unwrap() = app_cfg.clone();
     overlay::reconcile(&app_handle, &app_cfg.overlay);
     Ok(app_cfg)
 }
@@ -241,6 +279,19 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        return;
+                    }
+                    match hotkey::action_for(shortcut) {
+                        Some(hotkey::Action::Pause) => toggle_paused(app),
+                        None => {}
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let token = gsi::load_or_create_token(&data_dir)
@@ -248,7 +299,12 @@ pub fn run() {
 
             // Config + event engine (M3).
             let config_file = data_dir.join(config::CONFIG_FILE_NAME);
-            let (cfg, app_config, warnings) = config::load_or_create(&config_file);
+            let (cfg, app_config, mut warnings) = config::load_or_create(&config_file);
+            // A taken/invalid hotkey must not block startup: surface it as a
+            // config warning instead.
+            if let Err(e) = hotkey::apply(app.handle(), &app_config.hotkeys) {
+                warnings.push(e);
+            }
             let engine_emit = app.handle().clone();
             let engine = Arc::new(events::runtime::start_engine(
                 events::Cs2Audio,
@@ -371,29 +427,27 @@ pub fn run() {
                 .tooltip("CS2 Helper")
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
-                    "pause" => {
-                        let flag = app.state::<Paused>();
-                        let next = !*flag.0.lock().unwrap();
-                        app.state::<Engine>().0.set_paused(next);
-                        *flag.0.lock().unwrap() = next;
-                    }
+                    "pause" => toggle_paused(app),
                     "startup" => {
                         let enabled = startup_for_event.is_checked().unwrap_or(false);
                         #[cfg(windows)]
                         let _ = autostart::set_enabled(enabled);
                         let app_state = app.state::<AppSettings>();
-                        let mut app_cfg = *app_state.0.lock().unwrap();
+                        let mut app_cfg = app_state.0.lock().unwrap().clone();
                         app_cfg.start_with_windows = enabled;
-                        *app_state.0.lock().unwrap() = app_cfg;
+                        *app_state.0.lock().unwrap() = app_cfg.clone();
                         let cfg = app.state::<Engine>().0.snapshot().config.unwrap_or_default();
                         let path = app.state::<ConfigPath>();
                         let _ = config::write(&path.0, &cfg, &app_cfg);
                     }
                     "reload" => {
                         let path = app.state::<ConfigPath>();
-                        let (cfg, app_cfg, warnings) = config::load_or_create(&path.0);
+                        let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
+                        if let Err(e) = hotkey::apply(app, &app_cfg.hotkeys) {
+                            warnings.push(e);
+                        }
                         app.state::<Engine>().0.set_config(cfg, warnings);
-                        *app.state::<AppSettings>().0.lock().unwrap() = app_cfg;
+                        *app.state::<AppSettings>().0.lock().unwrap() = app_cfg.clone();
                         #[cfg(windows)]
                         let _ = autostart::set_enabled(app_cfg.start_with_windows);
                     }
@@ -483,7 +537,9 @@ pub fn run() {
             save_config,
             overlay_edit_start,
             overlay_edit_finish,
-            overlay_reset_position
+            overlay_reset_position,
+            hotkey_capture_start,
+            hotkey_capture_end
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

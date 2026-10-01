@@ -19,10 +19,16 @@ export type OverlayConfig = {
 	scale: number;
 };
 
+export type HotkeyCfg = { enabled: boolean; key: string };
+
+// One field per hotkey action, mirroring `[hotkeys.*]` in config.toml.
+export type HotkeysConfig = { pause: HotkeyCfg };
+
 export type AppConfig = {
 	start_with_windows: boolean;
 	start_minimized: boolean;
 	overlay: OverlayConfig;
+	hotkeys: HotkeysConfig;
 };
 
 export type ActiveReduction = { kind: string; volume: number };

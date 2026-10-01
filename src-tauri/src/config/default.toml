@@ -1,0 +1,52 @@
+# CS2 Helper configuration.
+# Volumes are absolute targets on the 0.0-1.0 scale (0.15 = 15%).
+# When several reductions are active the smallest volume wins.
+# Restore always goes back to 100%.
+# Reload from the app after editing (debug panel / tray).
+
+# Local player dies: reduce volume for duration_ms (spectator takes over while dead).
+[audio.death]
+enabled = true
+volume = 0.30
+duration_ms = 1000
+
+# Player (or spectated teammate) is flashed: reduce volume until the flash ends.
+[audio.flash]
+enabled = true
+volume = 0.15
+
+# Bomb explodes: reduce volume for duration_ms.
+[audio.bomb]
+enabled = true
+volume = 0.30
+duration_ms = 1500
+
+# Watching a teammate after death: reduce volume until you regain control.
+[audio.spectator]
+enabled = true
+volume = 0.60
+
+# App behavior.
+# start_with_windows: launch on login via a Startup-folder shortcut (no registry).
+# start_minimized: start hidden in the tray instead of showing the window.
+[app]
+start_with_windows = false
+start_minimized = false
+
+# In-game bomb defuse timer overlay.
+# enabled: show the overlay window. c4_timer_s: bomb fuse seconds (40 default).
+# safety_margin_s: subtract from remaining time before coloring (0 = pure math).
+# scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for top-center).
+[overlay]
+enabled = true
+c4_timer_s = 40.0
+safety_margin_s = 0.0
+scale = 1.00
+
+# Global hotkeys. key: e.g. "F10", "Ctrl+Shift+P". Keys are captured
+# system-wide, so CS2 does not receive them while enabled.
+
+# Toggle pause (same as the tray Pause/Resume).
+[hotkeys.pause]
+enabled = true
+key = "F10"

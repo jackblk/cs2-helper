@@ -40,6 +40,8 @@ import type {
 	Config,
 	EngineSnapshot,
 	GsiStatus,
+	HotkeyCfg,
+	HotkeysConfig,
 	OverlayConfig,
 } from "@/lib/types";
 
@@ -141,6 +143,90 @@ function EventRow({
 				<div className="w-28 shrink-0" />
 			)}
 		</div>
+	);
+}
+
+const MODIFIER_CODE = /^(Control|Shift|Alt|Meta|OS)(Left|Right)?$/;
+
+// KeyboardEvent → global-shortcut string ("Ctrl+Shift+P", "F10"). Uses the
+// physical `code` so the result does not depend on keyboard layout. Returns
+// null for a bare modifier press (keep waiting for the real key).
+function shortcutFromEvent(e: KeyboardEvent): string | null {
+	if (MODIFIER_CODE.test(e.code)) return null;
+	const key = e.code.replace(/^Key/, "").replace(/^Digit/, "");
+	const mods: string[] = [];
+	if (e.ctrlKey) mods.push("Ctrl");
+	if (e.altKey) mods.push("Alt");
+	if (e.shiftKey) mods.push("Shift");
+	if (e.metaKey) mods.push("Super");
+	return [...mods, key].join("+");
+}
+
+// Click, then press the new key combo. The live hotkey is released while
+// recording (otherwise pressing it would toggle pause instead of reaching the
+// webview) and re-registered from the saved config afterwards.
+function HotkeyRecorder({
+	value,
+	disabled,
+	onChange,
+}: {
+	value: string;
+	disabled: boolean;
+	onChange: (key: string) => void;
+}) {
+	const [recording, setRecording] = useState(false);
+
+	useEffect(() => {
+		if (!recording) return;
+		const stop = () => {
+			setRecording(false);
+			invoke("hotkey_capture_end").catch(() => {});
+		};
+		const onKeyDown = (e: KeyboardEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (e.code === "Escape") return stop();
+			const shortcut = shortcutFromEvent(e);
+			if (shortcut == null) return;
+			onChange(shortcut);
+			stop();
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		window.addEventListener("blur", stop);
+		return () => {
+			window.removeEventListener("keydown", onKeyDown, true);
+			window.removeEventListener("blur", stop);
+		};
+	}, [recording, onChange]);
+
+	// Leaving the page mid-recording must not leave the hotkey unregistered.
+	const recordingRef = useRef(false);
+	recordingRef.current = recording;
+	useEffect(
+		() => () => {
+			if (recordingRef.current) invoke("hotkey_capture_end").catch(() => {});
+		},
+		[],
+	);
+
+	const start = async () => {
+		try {
+			await invoke("hotkey_capture_start");
+			setRecording(true);
+		} catch (e) {
+			toast.error("Couldn't record hotkey", { description: String(e) });
+		}
+	};
+
+	return (
+		<Button
+			variant={recording ? "secondary" : "outline"}
+			disabled={disabled}
+			onClick={recording ? undefined : start}
+			className="min-w-40 font-mono"
+		>
+			{recording ? "Press a key… (Esc to cancel)" : value}
+		</Button>
 	);
 }
 
@@ -278,6 +364,22 @@ export function MainPage() {
 	const patchOverlay = (f: (o: OverlayConfig) => OverlayConfig) =>
 		setDraft((d) =>
 			d ? { ...d, app: { ...d.app, overlay: f(d.app.overlay) } } : d,
+		);
+
+	const patchHotkey = (
+		action: keyof HotkeysConfig,
+		f: (h: HotkeyCfg) => HotkeyCfg,
+	) =>
+		setDraft((d) =>
+			d
+				? {
+						...d,
+						app: {
+							...d.app,
+							hotkeys: { ...d.app.hotkeys, [action]: f(d.app.hotkeys[action]) },
+						},
+					}
+				: d,
 		);
 
 	const editOverlay = async () => {
@@ -643,6 +745,37 @@ export function MainPage() {
 										Enable and Save the overlay first, then position it.
 									</p>
 								)}
+							</div>
+
+							<Separator />
+
+							<div className="space-y-4">
+								<div className="space-y-1">
+									<Label>Hotkeys</Label>
+									<p className="text-sm text-muted-foreground">
+										Work anywhere, even in game. Keys are captured system-wide,
+										so CS2 won't receive them.
+									</p>
+								</div>
+
+								<div className="flex items-center gap-3">
+									<div className="flex w-36 shrink-0 items-center gap-1.5">
+										<Switch
+											checked={draft.app.hotkeys.pause.enabled}
+											onCheckedChange={(v) =>
+												patchHotkey("pause", (h) => ({ ...h, enabled: v }))
+											}
+										/>
+										<Label className="font-medium">Pause / Resume</Label>
+									</div>
+									<HotkeyRecorder
+										value={draft.app.hotkeys.pause.key}
+										disabled={!draft.app.hotkeys.pause.enabled}
+										onChange={(key) =>
+											patchHotkey("pause", (h) => ({ ...h, key }))
+										}
+									/>
+								</div>
 							</div>
 
 							<Separator />
