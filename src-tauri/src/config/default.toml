@@ -33,12 +33,14 @@ volume = 0.60
 start_with_windows = false
 start_minimized = false
 
-# In-game bomb defuse timer overlay.
-# enabled: show the overlay window. c4_timer_s: bomb fuse seconds (40 default).
+# In-game overlay.
+# enabled: show the overlay window. bomb_timer: show the bomb defuse timer.
+# c4_timer_s: bomb fuse seconds (40 default).
 # safety_margin_s: subtract from remaining time before coloring (0 = pure math).
 # scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for top-center).
 [overlay]
 enabled = true
+bomb_timer = true
 c4_timer_s = 40.0
 safety_margin_s = 0.0
 scale = 1.00

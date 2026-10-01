@@ -51,6 +51,7 @@ pub struct TimedEventCfg {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OverlayConfig {
     pub enabled: bool,
+    pub bomb_timer: bool,
     pub c4_timer_s: f32,
     pub safety_margin_s: f32,
     pub pos_x: Option<f64>,
@@ -155,6 +156,7 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
     let o = &app.overlay;
     let overlay = &mut doc["overlay"];
     overlay["enabled"] = value(o.enabled);
+    overlay["bomb_timer"] = value(o.bomb_timer);
     overlay["c4_timer_s"] = float(o.c4_timer_s);
     overlay["safety_margin_s"] = float(o.safety_margin_s);
     overlay["scale"] = float(o.scale);
@@ -374,6 +376,7 @@ fn apply_overlay(table: &toml::Table, out: &mut OverlayConfig, warnings: &mut Ve
     for (key, value) in table {
         match key.as_str() {
             "enabled" => set_bool(value, "overlay", key, &mut out.enabled, warnings),
+            "bomb_timer" => set_bool(value, "overlay", key, &mut out.bomb_timer, warnings),
             "c4_timer_s" => set_pos_float(value, key, &mut out.c4_timer_s, warnings),
             "safety_margin_s" => set_nonneg_float(value, key, &mut out.safety_margin_s, warnings),
             "scale" => set_scale(value, key, &mut out.scale, warnings),
@@ -524,6 +527,7 @@ mod tests {
     fn overlay_defaults_and_round_trip() {
         let o = OverlayConfig::default();
         assert!(o.enabled);
+        assert!(o.bomb_timer);
         assert_eq!(o.c4_timer_s, 40.0);
         assert_eq!(o.safety_margin_s, 0.0);
         assert_eq!(o.scale, 1.0);
@@ -532,11 +536,19 @@ mod tests {
 
         let mut a = AppConfig::default();
         a.overlay.enabled = false;
+        a.overlay.bomb_timer = false;
         a.overlay.scale = 1.5;
         a.overlay.pos_x = Some(100.0);
         a.overlay.pos_y = Some(40.0);
         let (_c, a2, warnings) = parse(&serialize(&Config::default(), &a));
         assert_eq!(a2.overlay, a.overlay);
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    #[test]
+    fn overlay_without_bomb_timer_key_keeps_it_on() {
+        let (_c, a, warnings) = parse("[overlay]\nenabled = true\n");
+        assert!(a.overlay.bomb_timer);
         assert!(warnings.is_empty(), "{warnings:?}");
     }
 
