@@ -48,7 +48,7 @@ Guidelines:
 * Raw `<img>` and plain text `<a>` links are fine (shadcn has no equivalent), as are non-interactive text elements (`p`, `span`, `ul`, headings).
 * Add components with `pnpm dlx shadcn@latest add <name>`. Config in [components.json](components.json): style `radix-nova`, baseColor `neutral`, icons `lucide-react`.
 * Import via the `@/` alias (`@/components/ui/button`, `@/lib/utils`). The alias resolves to `src/` (wired in both `vite.config.ts` and `tsconfig.json`).
-* Use the `cn()` helper from `@/lib/utils` for conditional classNames.
+* Use `cn()` from the `cn` package (`import { cn } from "cn"`) for conditional classNames. Do not re-export it from `@/lib/utils`.
 * Two pages under `HashRouter`: the **Main** page (`src/pages/MainPage.tsx`, the end-user UI) and the **Debug** page (`src/pages/DebugPage.tsx`, diagnostics that grow with each feature). `src/components/Layout.tsx` holds the shared header and the page switch.
 
 ## Architecture

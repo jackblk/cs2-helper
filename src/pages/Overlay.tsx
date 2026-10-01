@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { cn } from "cn";
 import { Check, Minus, Plus, X } from "lucide-react";
 import {
 	type CSSProperties,
@@ -34,7 +35,6 @@ import type {
 	OverlayEditResult,
 	OverlayEditSession,
 } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const DEFAULT_OVERLAY: OverlayConfig = {
 	enabled: true,

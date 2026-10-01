@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { cn } from "cn";
 import { Check, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { isFresh } from "@/hooks/use-gsi-status";
 import type { EngineSnapshot, GsiStatus } from "@/lib/types";
-import { cn, pct } from "@/lib/utils";
+import { pct } from "@/lib/utils";
 
 const EVENT_CHIPS = [
 	{ kind: "flash", label: "Flash" },

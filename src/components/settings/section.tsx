@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
 // One grid for every setting row so switches, labels and controls line up
 // across sections: switch | label | control | value | extra.
