@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Arbitrary high port, clear of common dev servers and the PatrikZeros tool
 /// (3202).
@@ -147,6 +147,22 @@ pub fn install_cfg(token: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+pub fn uninstall_cfg() -> Result<(), String> {
+    let dir = find_cs2_cfg_dir().ok_or("CS2 installation not found (is Steam + CS2 installed?)")?;
+    remove_cfg_in(&dir)
+}
+
+/// Removes only our own file; other GSI cfgs in the folder are untouched. An
+/// absent file already is the state the user asked for.
+fn remove_cfg_in(dir: &Path) -> Result<(), String> {
+    let path = dir.join(CFG_FILE_NAME);
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("remove {}: {e}", path.display())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,5 +258,23 @@ mod tests {
                 "D:\\G\\SteamLibrary".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn remove_deletes_only_our_cfg() {
+        let dir = tempfile::tempdir().unwrap();
+        let ours = dir.path().join(CFG_FILE_NAME);
+        let other = dir.path().join("gamestate_integration_other.cfg");
+        fs::write(&ours, "x").unwrap();
+        fs::write(&other, "y").unwrap();
+        remove_cfg_in(dir.path()).unwrap();
+        assert!(!ours.exists());
+        assert!(other.exists());
+    }
+
+    #[test]
+    fn remove_is_a_noop_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(remove_cfg_in(dir.path()).is_ok());
     }
 }

@@ -69,6 +69,12 @@ fn open_gsi_cfg_dir(app: tauri::AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
+/// CS2 keeps a loaded cfg until it restarts.
+#[tauri::command]
+fn uninstall_gsi_cfg() -> Result<(), String> {
+    gsi::install::uninstall_cfg()
+}
+
 #[tauri::command]
 fn engine_status(engine: tauri::State<'_, Engine>) -> events::runtime::EngineSnapshot {
     engine.0.snapshot()
@@ -497,6 +503,7 @@ pub fn run() {
             gsi_status,
             install_gsi_cfg,
             open_gsi_cfg_dir,
+            uninstall_gsi_cfg,
             engine_status,
             reload_config,
             reset_config,
