@@ -89,6 +89,16 @@ struct ConfigPayload {
     warnings: Vec<String>,
 }
 
+/// Settings changed outside the main window (tray), so it can refresh the form
+/// and drop undo history that no longer matches the file.
+const SETTINGS_CHANGED: &str = "settings:changed";
+
+#[derive(Clone, serde::Serialize)]
+struct SettingsChanged {
+    config: config::Config,
+    app: config::AppConfig,
+}
+
 fn load_and_apply_config(
     app_handle: &tauri::AppHandle,
     engine: &Engine,
@@ -419,17 +429,28 @@ pub fn run() {
                         let cfg = app.state::<Engine>().0.snapshot().config.unwrap_or_default();
                         let path = app.state::<ConfigPath>();
                         let _ = config::write(&path.0, &cfg, &app_cfg);
+                        let _ = app.emit(
+                            SETTINGS_CHANGED,
+                            SettingsChanged {
+                                config: cfg,
+                                app: app_cfg,
+                            },
+                        );
                     }
                     "reload" => {
-                        let path = app.state::<ConfigPath>();
-                        let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
-                        if let Err(e) = hotkey::apply(app, &app_cfg.hotkeys) {
-                            warnings.push(e);
-                        }
-                        app.state::<Engine>().0.set_config(cfg, warnings);
-                        *app.state::<AppSettings>().0.lock().unwrap() = app_cfg.clone();
-                        #[cfg(windows)]
-                        let _ = autostart::set_enabled(app_cfg.start_with_windows);
+                        let payload = load_and_apply_config(
+                            app,
+                            &app.state::<Engine>(),
+                            &app.state::<ConfigPath>(),
+                            &app.state::<AppSettings>(),
+                        );
+                        let _ = app.emit(
+                            SETTINGS_CHANGED,
+                            SettingsChanged {
+                                config: payload.config,
+                                app: payload.app,
+                            },
+                        );
                     }
                     "openfolder" => {
                         use tauri_plugin_opener::OpenerExt;
