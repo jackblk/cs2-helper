@@ -1,15 +1,22 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ConfigWarningsToast } from "@/components/ConfigWarningsToast";
+import { UndoRedo } from "@/components/UndoRedo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SettingsProvider } from "@/hooks/use-settings";
 import { useFitWindowToContent } from "@/lib/fit-window";
 
 // The debug page is intentionally hidden behind a triple-click on the logo.
 const DEBUG_UNLOCK_CLICKS = 3;
 const CLICK_RESET_MS = 600;
+
+// The header ends at 60 px (24 px padding + 36 px logo button); toasts start
+// below it so they never cover Undo/Redo.
+const TOASTER_OFFSET = { top: 72, right: 24 };
 
 export function Layout() {
 	const onDebug = useLocation().pathname === "/debug";
@@ -39,53 +46,58 @@ export function Layout() {
 
 	return (
 		<TooltipProvider>
-			<main
-				ref={mainRef}
-				className="dark min-h-screen bg-background p-6 text-foreground"
-			>
-				<div ref={contentRef} className="mx-auto max-w-3xl space-y-6">
-					<header className="flex items-center justify-between">
-						<div className="flex items-center gap-2">
-							<Button
-								variant="ghost"
-								size="icon"
-								onClick={onLogoClick}
-								aria-label="CS2 Helper"
-								className="size-9"
-							>
-								<img src="/flashbang.svg" alt="" className="size-6" />
-							</Button>
-							<div className="flex items-baseline gap-2">
-								<h1 className="font-heading text-xl font-semibold">
-									CS2 Helper
-								</h1>
-								<a
-									href="https://github.com/jackblk/cs2-helper"
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+			<SettingsProvider>
+				<main
+					ref={mainRef}
+					className="dark min-h-screen bg-background p-6 text-foreground"
+				>
+					<div ref={contentRef} className="mx-auto max-w-3xl space-y-6">
+						<header className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<Button
+									variant="ghost"
+									size="icon"
+									onClick={onLogoClick}
+									aria-label="CS2 Helper"
+									className="size-9"
 								>
-									by jackblk
-								</a>
-							</div>
-						</div>
-						<div className="flex items-center gap-2">
-							{onDebug && (
-								<Button asChild variant="ghost" size="sm">
-									<Link to="/">← Back</Link>
+									<img src="/flashbang.svg" alt="" className="size-6" />
 								</Button>
-							)}
-							{version && (
-								<Badge variant="secondary" className="font-mono">
-									{version}
-								</Badge>
-							)}
-						</div>
-					</header>
-					<Outlet />
-				</div>
-				<Toaster richColors position="top-right" />
-			</main>
+								<div className="flex items-baseline gap-2">
+									<h1 className="font-heading text-xl font-semibold">
+										CS2 Helper
+									</h1>
+									<a
+										href="https://github.com/jackblk/cs2-helper"
+										target="_blank"
+										rel="noopener noreferrer"
+										className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+									>
+										by jackblk
+									</a>
+								</div>
+							</div>
+							<div className="flex items-center gap-2">
+								{onDebug ? (
+									<Button asChild variant="ghost" size="sm">
+										<Link to="/">← Back</Link>
+									</Button>
+								) : (
+									<UndoRedo />
+								)}
+								{version && (
+									<Badge variant="secondary" className="font-mono">
+										{version}
+									</Badge>
+								)}
+							</div>
+						</header>
+						<Outlet />
+					</div>
+					<ConfigWarningsToast />
+					<Toaster richColors position="top-right" offset={TOASTER_OFFSET} />
+				</main>
+			</SettingsProvider>
 		</TooltipProvider>
 	);
 }

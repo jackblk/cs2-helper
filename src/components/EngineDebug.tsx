@@ -10,7 +10,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { EngineSnapshot, EventCfg, TimedEventCfg } from "@/lib/types";
+import { useSettings } from "@/hooks/use-settings";
+import type {
+	ConfigPayload,
+	EngineSnapshot,
+	EventCfg,
+	TimedEventCfg,
+} from "@/lib/types";
 import { pct } from "@/lib/utils";
 
 const timestamp = (atMs: number) => {
@@ -30,6 +36,7 @@ export function EngineDebug() {
 	const [snap, setSnap] = useState<EngineSnapshot | null>(null);
 	const [path, setPath] = useState("");
 	const [message, setMessage] = useState("");
+	const { adoptExternal } = useSettings();
 
 	useEffect(() => {
 		const unlisten = listen<EngineSnapshot>("engine:update", (event) => {
@@ -45,7 +52,9 @@ export function EngineDebug() {
 	const runConfigCommand = async (cmd: "reload_config" | "reset_config") => {
 		setMessage("");
 		try {
-			const { warnings } = await invoke<{ warnings: string[] }>(cmd);
+			const { config, app, warnings } = await invoke<ConfigPayload>(cmd);
+			// Changed outside the main page's undo history.
+			adoptExternal({ config, app });
 			setMessage(
 				warnings.length
 					? `loaded with ${warnings.length} warning(s)`
