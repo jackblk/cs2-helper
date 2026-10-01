@@ -121,18 +121,20 @@ fn load_and_apply_config(
     }
 }
 
+// Commands that can create the overlay window are `async`: on Windows,
+// building a webview inside a synchronous command deadlocks (wry#583).
 #[tauri::command]
-fn reload_config(
+async fn reload_config(
     app_handle: tauri::AppHandle,
     engine: tauri::State<'_, Engine>,
     path: tauri::State<'_, ConfigPath>,
     app: tauri::State<'_, AppSettings>,
-) -> ConfigPayload {
-    load_and_apply_config(&app_handle, &engine, &path, &app)
+) -> Result<ConfigPayload, String> {
+    Ok(load_and_apply_config(&app_handle, &engine, &path, &app))
 }
 
 #[tauri::command]
-fn reset_config(
+async fn reset_config(
     app_handle: tauri::AppHandle,
     engine: tauri::State<'_, Engine>,
     path: tauri::State<'_, ConfigPath>,
@@ -191,7 +193,7 @@ fn get_app_settings(app: tauri::State<'_, AppSettings>) -> config::AppConfig {
 }
 
 #[tauri::command]
-fn save_config(
+async fn save_config(
     config: config::Config,
     app: config::AppConfig,
     app_handle: tauri::AppHandle,
@@ -214,7 +216,7 @@ fn save_config(
 }
 
 #[tauri::command]
-fn overlay_edit_start(
+async fn overlay_edit_start(
     app_handle: tauri::AppHandle,
     settings: tauri::State<'_, AppSettings>,
 ) -> Result<(), String> {
