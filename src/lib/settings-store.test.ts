@@ -181,3 +181,64 @@ describe("createSettingsStore", () => {
 		expect(listener).not.toHaveBeenCalled();
 	});
 });
+
+describe("commits racing undo and run", () => {
+	type P = { a: number; b: number };
+
+	function setupPair(block: (s: P) => boolean, gate: Promise<void>) {
+		const save = vi.fn(async (s: P) => {
+			if (block(s)) await gate;
+		});
+		const store = createSettingsStore<P>({ save, notify: () => {} });
+		store.replace({ a: 0, b: 0 });
+		return { store, save };
+	}
+
+	it("applies a commit made during an in-flight undo on top of the undone state", async () => {
+		const gate = deferred();
+		const { store, save } = setupPair(
+			(s) => s.a === 0 && s.b === 0,
+			gate.promise,
+		);
+		store.commit("a", (s) => ({ ...s, a: 1 }));
+		await store.idle();
+		store.undo();
+		await flush();
+		store.commit("b", (s) => ({ ...s, b: 1 }));
+		gate.resolve();
+		await store.idle();
+		expect(save).toHaveBeenLastCalledWith({ a: 0, b: 1 });
+		expect(store.getSnapshot().current).toEqual({ a: 0, b: 1 });
+		expect(store.getSnapshot().history.past).toEqual([
+			{ label: "b", before: { a: 0, b: 0 }, after: { a: 0, b: 1 } },
+		]);
+	});
+
+	it("applies a commit made during an in-flight run on top of its result", async () => {
+		const gate = deferred();
+		const { store, save } = setupPair(() => false, gate.promise);
+		store.run("Reset to defaults", "Reset failed", async () => {
+			await gate.promise;
+			return { a: 5, b: 5 };
+		});
+		await flush();
+		store.commit("b", (s) => ({ ...s, b: 7 }));
+		gate.resolve();
+		await store.idle();
+		expect(save).toHaveBeenLastCalledWith({ a: 5, b: 7 });
+		expect(store.getSnapshot().current).toEqual({ a: 5, b: 7 });
+	});
+
+	it("keeps an edit queued behind a slow save visible after the save lands", async () => {
+		const gate = deferred();
+		const { store } = setupPair((s) => s.a === 1, gate.promise);
+		store.commit("a", (s) => ({ ...s, a: 1 }));
+		store.commit("b", (s) => ({ ...s, b: 1 }));
+		await flush();
+		gate.resolve();
+		await flush();
+		expect(store.getSnapshot().current).toEqual({ a: 1, b: 1 });
+		await store.idle();
+		expect(store.getSnapshot().current).toEqual({ a: 1, b: 1 });
+	});
+});

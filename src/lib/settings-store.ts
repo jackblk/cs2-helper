@@ -15,9 +15,11 @@ export type StoreSnapshot<T> = { current: T | null; history: History<T> };
 const same = (a: unknown, b: unknown) =>
 	JSON.stringify(a) === JSON.stringify(b);
 
-// Autosave with undo/redo. `current` is shown optimistically; `saved` is the
-// last state the backend accepted. Jobs run one at a time in commit order, so
-// a slow save can never land after a newer one.
+// Autosave with undo/redo. `saved` is the last state the backend accepted;
+// `current` is `saved` with the not-yet-saved commits replayed on top. Jobs
+// run one at a time in commit order, so a slow save can never land after a
+// newer one, and each commit is applied to `saved` only when it runs, so it
+// lands on top of an undo or reset queued before it.
 export function createSettingsStore<T>({
 	save,
 	notify,
@@ -30,6 +32,7 @@ export function createSettingsStore<T>({
 		history: emptyHistory<T>(),
 	};
 	let saved: T | null = null;
+	let pending: { update: (value: T) => T }[] = [];
 	// Bumped when queued jobs no longer apply: a failed save they were built
 	// on, or settings replaced from outside.
 	let generation = 0;
@@ -37,7 +40,9 @@ export function createSettingsStore<T>({
 	const listeners = new Set<() => void>();
 
 	const set = (patch: Partial<StoreSnapshot<T>>) => {
-		snapshot = { ...snapshot, ...patch };
+		const current =
+			saved == null ? null : pending.reduce((s, p) => p.update(s), saved);
+		snapshot = { ...snapshot, ...patch, current };
 		for (const listener of listeners) listener();
 	};
 
@@ -50,7 +55,8 @@ export function createSettingsStore<T>({
 
 	const fail = (title: string, error: unknown) => {
 		generation += 1;
-		set({ current: saved });
+		pending = [];
+		set({});
 		notify({ kind: "failed", title, error });
 	};
 
@@ -67,16 +73,27 @@ export function createSettingsStore<T>({
 		replace(value: T) {
 			generation += 1;
 			saved = value;
-			set({ current: value, history: emptyHistory<T>() });
+			pending = [];
+			set({ history: emptyHistory<T>() });
 		},
 
 		commit(label: string, update: (value: T) => T): Promise<void> {
-			const before = snapshot.current;
-			if (before == null) return tail;
-			const after = update(before);
-			if (same(before, after)) return tail;
-			set({ current: after });
+			const shown = snapshot.current;
+			if (shown == null || same(shown, update(shown))) return tail;
+			const entry = { update };
+			pending.push(entry);
+			set({});
 			return enqueue(async (stale) => {
+				const before = saved as T;
+				const after = update(before);
+				const settle = () => {
+					pending = pending.filter((p) => p !== entry);
+				};
+				if (same(before, after)) {
+					settle();
+					set({});
+					return;
+				}
 				try {
 					await save(after);
 				} catch (e) {
@@ -85,6 +102,7 @@ export function createSettingsStore<T>({
 				}
 				if (stale()) return;
 				saved = after;
+				settle();
 				set({ history: record(snapshot.history, { label, before, after }) });
 				notify({ kind: "saved", label });
 			});
@@ -103,7 +121,6 @@ export function createSettingsStore<T>({
 				if (stale()) return;
 				saved = after;
 				set({
-					current: after,
 					history:
 						before == null
 							? snapshot.history
@@ -127,7 +144,7 @@ export function createSettingsStore<T>({
 				}
 				if (stale()) return;
 				saved = entry.before;
-				set({ current: entry.before, history: undone(snapshot.history) });
+				set({ history: undone(snapshot.history) });
 				notify({ kind: "undone", label: entry.label });
 			});
 		},
@@ -146,7 +163,7 @@ export function createSettingsStore<T>({
 				}
 				if (stale()) return;
 				saved = entry.after;
-				set({ current: entry.after, history: redone(snapshot.history) });
+				set({ history: redone(snapshot.history) });
 				notify({ kind: "redone", label: entry.label });
 			});
 		},
