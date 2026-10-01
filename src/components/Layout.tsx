@@ -7,6 +7,10 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFitWindowToContent } from "@/lib/fit-window";
 
+// The debug page is intentionally hidden behind a triple-click on the logo.
+const DEBUG_UNLOCK_CLICKS = 3;
+const CLICK_RESET_MS = 600;
+
 export function Layout() {
 	const onDebug = useLocation().pathname === "/debug";
 	const navigate = useNavigate();
@@ -17,22 +21,20 @@ export function Layout() {
 	useEffect(() => {
 		getVersion().then(setVersion);
 	}, []);
-	// Hidden access to the debug page: triple-click the logo. Count resets if
-	// clicks pause for more than 600ms, so stray clicks never trigger it.
 	const clicks = useRef(0);
 	const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const onLogoClick = () => {
 		if (resetTimer.current) clearTimeout(resetTimer.current);
 		clicks.current += 1;
-		if (clicks.current >= 3) {
+		if (clicks.current >= DEBUG_UNLOCK_CLICKS) {
 			clicks.current = 0;
 			navigate("/debug");
 			return;
 		}
 		resetTimer.current = setTimeout(() => {
 			clicks.current = 0;
-		}, 600);
+		}, CLICK_RESET_MS);
 	};
 
 	return (

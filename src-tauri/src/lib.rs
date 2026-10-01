@@ -14,56 +14,49 @@ mod gsi;
 mod hotkey;
 mod overlay;
 
-/// Managed state: the engine handle (shared with the GSI callback).
+/// Payload age after which the game counts as not running.
+const GSI_FRESH_MS: u64 = 5000;
+
 struct Engine(Arc<events::runtime::EngineHandle>);
 
-/// Managed state: absolute path of config.toml.
 struct ConfigPath(std::path::PathBuf);
 
-/// Managed state: the live app-level settings (the `[app]` table).
 struct AppSettings(Mutex<config::AppConfig>);
 
-/// Managed state: a cheap mirror of the engine's paused flag (for the tray
-/// status tick, which should not lock the full snapshot every second).
+/// Mirror of the engine's paused flag, so the tray status tick does not lock
+/// the full snapshot every second.
 struct Paused(Arc<Mutex<bool>>);
 
-/// List all per-process audio sessions on active output devices (diagnostics).
 #[cfg(windows)]
 #[tauri::command]
 fn list_audio_sessions() -> Result<Vec<audio::AudioSessionInfo>, String> {
     audio::list_sessions().map_err(|e| e.to_string())
 }
 
-/// Set the volume (0.0..=1.0) for every session of `process` (e.g. "cs2.exe").
-/// Returns how many sessions were changed.
+/// `volume` is 0.0..=1.0. Returns the number of sessions changed.
 #[cfg(windows)]
 #[tauri::command]
 fn set_process_volume(process: String, volume: f32) -> Result<usize, String> {
     audio::set_volume_for_process(&process, volume).map_err(|e| e.to_string())
 }
 
-/// Read the volume of the first session matching `process`.
 #[cfg(windows)]
 #[tauri::command]
 fn get_process_volume(process: String) -> Result<Option<f32>, String> {
     audio::get_volume_for_process(&process).map_err(|e| e.to_string())
 }
 
-/// GSI server + cfg status for the debug panel.
 #[tauri::command]
 fn gsi_status(shared: tauri::State<'_, gsi::SharedGsi>) -> gsi::GsiStatus {
     gsi::status(&shared)
 }
 
-/// Write gamestate_integration_cs2helper.cfg into the CS2 cfg directory.
-/// Returns the written path. User must restart CS2 afterwards.
+/// Returns the written path. CS2 only picks up the cfg after a restart.
 #[tauri::command]
 fn install_gsi_cfg(token: tauri::State<'_, gsi::GsiToken>) -> Result<String, String> {
     gsi::install::install_cfg(&token.0).map(|p| p.display().to_string())
 }
 
-/// Open the CS2 cfg directory in the OS file explorer. Reveals our cfg file if
-/// it exists, otherwise opens the containing folder.
 #[tauri::command]
 fn open_gsi_cfg_dir(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -76,14 +69,13 @@ fn open_gsi_cfg_dir(app: tauri::AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-/// Current engine snapshot (duck state, event log, config) for the debug panel.
 #[tauri::command]
 fn engine_status(engine: tauri::State<'_, Engine>) -> events::runtime::EngineSnapshot {
     engine.0.snapshot()
 }
 
-/// The config after a (re)load, so the UI can show it without waiting for the
-/// async `engine:update` round-trip (which races command completion).
+/// Returned directly so the UI need not wait for the async `engine:update`,
+/// which races command completion.
 #[derive(serde::Serialize)]
 struct ConfigPayload {
     config: config::Config,
@@ -91,23 +83,21 @@ struct ConfigPayload {
     warnings: Vec<String>,
 }
 
-/// Re-read config.toml and push it to the engine. Returns the loaded config.
-#[tauri::command]
-fn reload_config(
-    app_handle: tauri::AppHandle,
-    engine: tauri::State<'_, Engine>,
-    path: tauri::State<'_, ConfigPath>,
-    app: tauri::State<'_, AppSettings>,
+fn load_and_apply_config(
+    app_handle: &tauri::AppHandle,
+    engine: &Engine,
+    path: &ConfigPath,
+    app: &AppSettings,
 ) -> ConfigPayload {
     let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
-    if let Err(e) = hotkey::apply(&app_handle, &app_cfg.hotkeys) {
+    if let Err(e) = hotkey::apply(app_handle, &app_cfg.hotkeys) {
         warnings.push(e);
     }
     engine.0.set_config(cfg, warnings.clone());
     *app.0.lock().unwrap() = app_cfg.clone();
     #[cfg(windows)]
     let _ = autostart::set_enabled(app_cfg.start_with_windows);
-    overlay::reconcile(&app_handle, &app_cfg.overlay);
+    overlay::reconcile(app_handle, &app_cfg.overlay);
     ConfigPayload {
         config: cfg,
         app: app_cfg,
@@ -115,7 +105,16 @@ fn reload_config(
     }
 }
 
-/// Back up config.toml, restore defaults, push to the engine. Returns defaults.
+#[tauri::command]
+fn reload_config(
+    app_handle: tauri::AppHandle,
+    engine: tauri::State<'_, Engine>,
+    path: tauri::State<'_, ConfigPath>,
+    app: tauri::State<'_, AppSettings>,
+) -> ConfigPayload {
+    load_and_apply_config(&app_handle, &engine, &path, &app)
+}
+
 #[tauri::command]
 fn reset_config(
     app_handle: tauri::AppHandle,
@@ -124,29 +123,14 @@ fn reset_config(
     app: tauri::State<'_, AppSettings>,
 ) -> Result<ConfigPayload, String> {
     config::reset(&path.0)?;
-    let (cfg, app_cfg, mut warnings) = config::load_or_create(&path.0);
-    if let Err(e) = hotkey::apply(&app_handle, &app_cfg.hotkeys) {
-        warnings.push(e);
-    }
-    engine.0.set_config(cfg, warnings.clone());
-    *app.0.lock().unwrap() = app_cfg.clone();
-    #[cfg(windows)]
-    let _ = autostart::set_enabled(app_cfg.start_with_windows);
-    overlay::reconcile(&app_handle, &app_cfg.overlay);
-    Ok(ConfigPayload {
-        config: cfg,
-        app: app_cfg,
-        warnings,
-    })
+    Ok(load_and_apply_config(&app_handle, &engine, &path, &app))
 }
 
-/// Absolute path of config.toml (for display in the debug panel).
 #[tauri::command]
 fn config_path(path: tauri::State<'_, ConfigPath>) -> String {
     path.0.display().to_string()
 }
 
-/// Reveal config.toml in the OS file explorer.
 #[tauri::command]
 fn open_config_dir(app: tauri::AppHandle, path: tauri::State<'_, ConfigPath>) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -155,16 +139,14 @@ fn open_config_dir(app: tauri::AppHandle, path: tauri::State<'_, ConfigPath>) ->
         .map_err(|e| e.to_string())
 }
 
-/// Toggle the global pause (tray + debug panel). Restores 100% when pausing.
 #[tauri::command]
 fn set_paused(paused: bool, engine: tauri::State<'_, Engine>, flag: tauri::State<'_, Paused>) {
     engine.0.set_paused(paused);
     *flag.0.lock().unwrap() = paused;
 }
 
-/// Flip the global pause (tray Pause/Resume item and the pause hotkey).
-/// `try_state`: the hotkey can fire before setup has managed the state.
 fn toggle_paused(app: &tauri::AppHandle) {
+    // `try_state`: the hotkey can fire before setup has managed the state.
     let (Some(engine), Some(flag)) = (app.try_state::<Engine>(), app.try_state::<Paused>()) else {
         return;
     };
@@ -173,13 +155,11 @@ fn toggle_paused(app: &tauri::AppHandle) {
     *flag.0.lock().unwrap() = next;
 }
 
-/// Release the hotkeys while the UI records a new one.
 #[tauri::command]
 fn hotkey_capture_start(app_handle: tauri::AppHandle) -> Result<(), String> {
     hotkey::suspend(&app_handle)
 }
 
-/// Re-register the saved hotkeys after the UI finishes recording.
 #[tauri::command]
 fn hotkey_capture_end(
     app_handle: tauri::AppHandle,
@@ -189,15 +169,11 @@ fn hotkey_capture_end(
     hotkey::apply(&app_handle, &cfg)
 }
 
-/// Current app-level settings (the `[app]` table).
 #[tauri::command]
 fn get_app_settings(app: tauri::State<'_, AppSettings>) -> config::AppConfig {
     app.0.lock().unwrap().clone()
 }
 
-/// Persist UI-edited config straight to config.toml (M4.2), push it to the
-/// engine, and re-sync autostart. Mirrors `reload_config` but takes the values
-/// from the UI instead of re-reading the file. No warnings: values are typed.
 #[tauri::command]
 fn save_config(
     config: config::Config,
@@ -212,6 +188,7 @@ fn save_config(
     let prev_hotkeys = settings.0.lock().unwrap().hotkeys.clone();
     hotkey::apply_or_revert(&app_handle, &app.hotkeys, &prev_hotkeys)?;
     config::write(&path.0, &config, &app)?;
+    // UI values are already typed, so there are no parse warnings.
     engine.0.set_config(config, Vec::new());
     *settings.0.lock().unwrap() = app.clone();
     #[cfg(windows)]
@@ -220,14 +197,13 @@ fn save_config(
     Ok(())
 }
 
-/// Enter overlay edit mode (window becomes draggable, not click-through).
 #[tauri::command]
 fn overlay_edit_start(app_handle: tauri::AppHandle) -> Result<(), String> {
     overlay::edit_start(&app_handle)
 }
 
-/// Finish overlay edit mode: persist the dragged position to config and return
-/// the updated app settings so the UI can re-baseline without a phantom diff.
+/// Returns the updated settings so the UI can re-baseline without a phantom
+/// diff.
 #[tauri::command]
 fn overlay_edit_finish(
     app_handle: tauri::AppHandle,
@@ -244,9 +220,7 @@ fn overlay_edit_finish(
     Ok(app_cfg)
 }
 
-/// Reset the overlay to its default position: clear the saved x/y, persist, and
-/// reconcile so the live window snaps back to bottom-center. Returns the updated
-/// app settings so the UI can re-baseline.
+/// Returns the updated settings so the UI can re-baseline.
 #[tauri::command]
 fn overlay_reset_position(
     app_handle: tauri::AppHandle,
@@ -263,8 +237,6 @@ fn overlay_reset_position(
     Ok(app_cfg)
 }
 
-/// Preview an unsaved overlay size (settings slider): `Some(scale)` resizes the
-/// overlay and shows a sample reading; `None` restores the saved size.
 #[tauri::command]
 fn overlay_preview_scale(
     scale: Option<f32>,
@@ -275,7 +247,6 @@ fn overlay_preview_scale(
     overlay::preview_scale(&app_handle, &saved, scale);
 }
 
-/// The engine's current audio Config (used when persisting app-only changes).
 fn engine_config(app: &tauri::AppHandle) -> config::Config {
     app.state::<Engine>().0.snapshot().config.unwrap_or_default()
 }
@@ -309,11 +280,9 @@ pub fn run() {
             let token = gsi::load_or_create_token(&data_dir)
                 .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
 
-            // Config + event engine (M3).
             let config_file = data_dir.join(config::CONFIG_FILE_NAME);
             let (cfg, app_config, mut warnings) = config::load_or_create(&config_file);
-            // A taken/invalid hotkey must not block startup: surface it as a
-            // config warning instead.
+            // A taken or invalid hotkey must not block startup.
             if let Err(e) = hotkey::apply(app.handle(), &app_config.hotkeys) {
                 warnings.push(e);
             }
@@ -328,7 +297,6 @@ pub fn run() {
                 },
             ));
 
-            // GSI server (M2) — also feeds the engine.
             let shared: gsi::SharedGsi = Default::default();
             let handle = app.handle().clone();
             let engine_for_gsi = engine.clone();
@@ -342,14 +310,13 @@ pub fn run() {
                     g.running = true;
                     g.port = port;
                 }
-                // Port taken / bind failure: app stays usable, status shows
-                // not-running, debug panel surfaces it. Don't crash.
+                // Non-fatal: the app stays usable and the status shows not-running.
                 Err(e) => eprintln!("GSI server failed to start: {e}"),
             }
 
             let paused_flag = Arc::new(Mutex::new(false));
 
-            // Autostart: config is the source of truth; make the OS match it.
+            // Config is the source of truth for autostart: make the OS match it.
             #[cfg(windows)]
             let _ = autostart::set_enabled(app_config.start_with_windows);
 
@@ -362,15 +329,12 @@ pub fn run() {
 
             let window = app.get_webview_window("main").expect("main window exists");
 
-            // Create the in-game overlay window if enabled.
             {
                 let overlay_cfg = app.state::<AppSettings>().0.lock().unwrap().overlay;
                 overlay::reconcile(app.handle(), &overlay_cfg);
             }
 
-            // Show now unless the user opted to start minimized in the tray.
-            // When minimized there is no window to confirm the app launched, so
-            // emit a notification the same way close-to-tray does.
+            // Started minimized: no window confirms the launch, so notify.
             if !app.state::<AppSettings>().0.lock().unwrap().start_minimized {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -384,8 +348,7 @@ pub fn run() {
                     .show();
             }
 
-            // Close (X) hides to the tray instead of quitting; the engine keeps
-            // running. Show a one-time "still running" notification on first hide.
+            // Close (X) hides to the tray instead of quitting.
             let hint_shown = Arc::new(std::sync::atomic::AtomicBool::new(false));
             let app_handle = app.handle().clone();
             window.clone().on_window_event(move |event| {
@@ -406,7 +369,6 @@ pub fn run() {
                 }
             });
 
-            // ---- System tray -------------------------------------------------
             let start_with_windows =
                 app.state::<AppSettings>().0.lock().unwrap().start_with_windows;
 
@@ -492,8 +454,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Live tray status: paused mirror is event-driven, but "Waiting for
-            // CS2" depends on GSI freshness (time-based), so poll once a second.
+            // Polled because "Waiting for CS2" depends on GSI freshness, which
+            // is time-based.
             let paused_for_tick = app.state::<Paused>().0.clone();
             let gsi_for_tick = app.state::<gsi::SharedGsi>().inner().clone();
             let tick_app = app.handle().clone();
@@ -502,7 +464,7 @@ pub fn run() {
                 let paused = *paused_for_tick.lock().unwrap();
                 let fresh = gsi::status(&gsi_for_tick)
                     .last_payload_age_ms
-                    .is_some_and(|ms| ms < 5000);
+                    .is_some_and(|ms| ms < GSI_FRESH_MS);
                 let label = if paused {
                     "Paused"
                 } else if fresh {
@@ -513,13 +475,9 @@ pub fn run() {
                 let _ = status_i.set_text(label);
                 let _ = pause_i.set_text(if paused { "Resume" } else { "Pause" });
 
-                // Overlay watchdog: the always-on-top overlay can be torn down,
-                // hidden, or dropped behind a fullscreen game by the OS
-                // (fullscreen/resolution changes, GPU surface loss) and is never
-                // restored on its own. Re-assert it every tick — recreate if the
-                // window was destroyed, otherwise re-show + re-claim topmost.
-                // No-op while disabled. (`ensure_alive` deliberately does not
-                // reposition, so this is safe during overlay edit mode.)
+                // Overlay watchdog: fullscreen or resolution changes and GPU
+                // surface loss can destroy, hide, or bury the overlay, and the
+                // OS never restores it.
                 let want_overlay = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
                 if want_overlay.enabled {
                     let app_for_main = tick_app.clone();

@@ -1,8 +1,5 @@
-//! CS2 Game State Integration (GSI).
-//!
-//! CS2 POSTs JSON game state to our local HTTP server (configured by a cfg
-//! file we install into the game's cfg directory). This module owns the
-//! server, the auth token, payload parsing, and the merged game state.
+//! CS2 Game State Integration: CS2 POSTs JSON game state to our local HTTP
+//! server, configured by a cfg file we install into the game's cfg directory.
 
 pub mod install;
 pub mod payload;
@@ -19,11 +16,10 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::Serialize;
 
-/// Newtype for the GSI auth token so it can live in Tauri managed state
-/// without colliding with other `String`s.
+/// Newtype so the token can be Tauri managed state without colliding with
+/// other `String`s.
 pub struct GsiToken(pub String);
 
-/// State shared between the server thread and Tauri commands.
 #[derive(Default)]
 pub struct GsiShared {
     pub state: GameState,
@@ -34,14 +30,12 @@ pub struct GsiShared {
 
 pub type SharedGsi = Arc<Mutex<GsiShared>>;
 
-/// Snapshot for the `gsi_status` command / debug panel.
 #[derive(Debug, Clone, Serialize)]
 pub struct GsiStatus {
     pub running: bool,
     pub port: u16,
-    /// Milliseconds since the last accepted payload; `None` = never.
     pub last_payload_age_ms: Option<u64>,
-    /// Where the cfg file goes (None when CS2 install not found).
+    /// `None` when the CS2 install is not found.
     pub cfg_path: Option<String>,
     pub cfg_installed: bool,
 }
@@ -58,11 +52,13 @@ pub fn status(shared: &SharedGsi) -> GsiStatus {
     }
 }
 
-/// Load the per-install auth token from `<dir>/gsi_token.txt`, creating a
-/// random 32-char alphanumeric one on first run. The same token is written
-/// into the game's cfg file and checked on every incoming POST.
+const TOKEN_FILE_NAME: &str = "gsi_token.txt";
+const TOKEN_LEN: usize = 32;
+
+/// Per-install random token, created on first run. It is written into the
+/// game's cfg file and checked on every incoming POST.
 pub fn load_or_create_token(dir: &Path) -> Result<String, String> {
-    let path = dir.join("gsi_token.txt");
+    let path = dir.join(TOKEN_FILE_NAME);
     if let Ok(existing) = fs::read_to_string(&path) {
         let existing = existing.trim().to_string();
         if !existing.is_empty() {
@@ -71,7 +67,7 @@ pub fn load_or_create_token(dir: &Path) -> Result<String, String> {
     }
     let token: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
-        .take(32)
+        .take(TOKEN_LEN)
         .map(char::from)
         .collect();
     fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
@@ -89,7 +85,7 @@ mod tests {
         let t1 = load_or_create_token(dir.path()).unwrap();
         let t2 = load_or_create_token(dir.path()).unwrap();
         assert_eq!(t1, t2);
-        assert_eq!(t1.len(), 32);
+        assert_eq!(t1.len(), TOKEN_LEN);
         assert!(t1.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 

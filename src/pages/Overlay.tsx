@@ -30,19 +30,16 @@ const SAMPLE_S = 32.5;
 export function Overlay() {
 	const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_OVERLAY);
 	const [editing, setEditing] = useState(false);
-	// Preview mode: the Debug page is open, so show the idle placeholder even
-	// without a plant. Off during normal play (overlay only appears on a plant).
+	// Debug page toggle: show the idle placeholder even without a plant.
 	const [preview, setPreview] = useState(false);
-	// Size preview from the settings slider (see SAMPLE_S).
-	const [sample, setSample] = useState(false);
+	const [sizePreview, setSizePreview] = useState(false);
 	const [state, setState] = useState<GameState | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
 
-	// Plant clock: timestamp (performance.now) the bomb became "planted".
+	// performance.now() when the bomb was planted.
 	const plantedAt = useRef<number | null>(null);
 	const prevBomb = useRef<string | null>(null);
 
-	// Load config + subscribe to config/edit/game-state events.
 	useEffect(() => {
 		invoke<AppConfig>("get_app_settings").then(
 			(a) => setCfg(a.overlay),
@@ -58,7 +55,7 @@ export function Overlay() {
 			setPreview(e.payload),
 		);
 		const unSample = listen<boolean>("overlay:sample", (e) =>
-			setSample(e.payload),
+			setSizePreview(e.payload),
 		);
 		const unGsi = listen<GsiUpdate>("gsi:update", (e) =>
 			setState(e.payload.state),
@@ -72,19 +69,17 @@ export function Overlay() {
 		};
 	}, []);
 
-	// Detect plant / clear on resolve.
 	useEffect(() => {
 		const bomb = state?.bomb ?? null;
 		if (bomb === "planted" && prevBomb.current !== "planted") {
 			plantedAt.current = performance.now();
 		} else if (bomb !== "planted" && bomb !== "defusing") {
-			// "defused", "exploded", or gone: stop the clock.
+			// "defused", "exploded", or gone.
 			plantedAt.current = null;
 		}
 		prevBomb.current = bomb;
 	}, [state?.bomb]);
 
-	// 60fps countdown loop.
 	useEffect(() => {
 		let raf = 0;
 		const tick = () => {
@@ -119,17 +114,10 @@ export function Overlay() {
 		return () => window.removeEventListener("mousedown", onMouseDown);
 	}, [editing]);
 
-	// Show only while a plant is counting down, while positioning, while the
-	// Debug page is open (preview), or while a new size is being previewed.
-	// Otherwise the overlay stays hidden in play.
-	const show = editing || preview || sample || remaining != null;
+	const show = editing || preview || sizePreview || remaining != null;
 	if (!show) return null;
 
-	// A live plant wins; otherwise the size preview shows a sample reading.
-	const shown = remaining ?? (sample && !editing ? SAMPLE_S : null);
-
-	// Nothing to show (and not positioning): a dim idle placeholder so the
-	// user can confirm where the overlay sits before the round.
+	const shown = remaining ?? (sizePreview && !editing ? SAMPLE_S : null);
 	const idle = !editing && shown == null;
 
 	const color =
@@ -146,8 +134,8 @@ export function Overlay() {
 			)}
 		>
 			<div
-				// The window is sized BASE * scale; scale the badge to match so its
-				// text grows with the window instead of the container resizing alone.
+				// The window is resized by `scale` on the Rust side; scale the badge
+				// too so its text grows with the window.
 				style={{ transform: `scale(${cfg.scale})` }}
 				className={cn(
 					"rounded-lg px-4 py-2 text-center tabular-nums tracking-tight shadow-lg",

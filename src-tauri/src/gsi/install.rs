@@ -1,25 +1,17 @@
-//! Locate the CS2 cfg directory and install our GSI cfg file into it.
-
 use std::fs;
 use std::path::PathBuf;
 
-/// Fixed local port CS2 POSTs to. Arbitrary high port to avoid clashes with
-/// common dev servers and the PatrikZeros tool (3202).
+/// Arbitrary high port, clear of common dev servers and the PatrikZeros tool
+/// (3202).
 pub const GSI_PORT: u16 = 31211;
 pub const CFG_FILE_NAME: &str = "gamestate_integration_cs2helper.cfg";
-/// CS2's Steam appid.
 pub const CS2_APP_ID: &str = "730";
 
-/// Render the GSI cfg CS2 reads at startup. `buffer 0.0` so flash events
-/// arrive with minimal delay; `throttle 0.1` caps POST rate between changes.
-///
-/// `allplayers_id` is an observer-only component (it returns data only while
-/// spectating/observing), so its mere presence is a reliable "you are now
-/// observing" signal — it appears the instant you become a spectator, even
-/// while free-roaming with no locked camera target, which the local `player`
-/// block does not cover. `heartbeat 10.0` (down from Valve's 30.0 default) is a
-/// safety net so any state that only refreshes on heartbeat recovers within
-/// ~10s instead of ~30s.
+/// `buffer 0.0` so flash events arrive with minimal delay; `throttle 0.1`
+/// caps the POST rate between changes. `allplayers_id` is observer-only, so
+/// its presence signals spectating, even free-roaming with no camera target
+/// (which the `player` block does not cover). `heartbeat 10.0` (Valve's
+/// default is 30.0) so heartbeat-only state recovers within ~10s.
 pub fn render_cfg(token: &str, port: u16) -> String {
     format!(
         r#""CS2 Helper"
@@ -54,23 +46,25 @@ fn vdf_key_value(line: &str) -> Option<(&str, &str)> {
     Some((quoted.next()?, quoted.next()?))
 }
 
-/// Extract every library `"path"` from libraryfolders.vdf, in file order.
-/// Minimal line scan — trusted local data, not worth a full VDF parser.
+/// vdf strings escape backslashes (`C:\\Steam`).
+fn unescape_vdf(value: &str) -> String {
+    value.replace("\\\\", "\\")
+}
+
+/// Every library `"path"` in libraryfolders.vdf, in file order. A minimal
+/// line scan: trusted local data, not worth a full VDF parser.
 pub fn parse_library_paths(vdf: &str) -> Vec<String> {
     vdf.lines()
         .filter_map(vdf_key_value)
         .filter(|(k, _)| *k == "path")
-        .map(|(_, v)| v.replace("\\\\", "\\"))
+        .map(|(_, v)| unescape_vdf(v))
         .collect()
 }
 
-/// Path of the library whose `apps` block contains `app_id`.
-///
-/// Line scan that tracks the most recent `"path"` seen: each library block
-/// lists its `path` before its `apps`, so when we hit a line whose KEY (first
-/// quoted string) equals the appid, the current path is that app's library.
-/// Size values (second quoted string) can't false-match because only keys are
-/// compared.
+/// Path of the library whose `apps` block contains `app_id`. Each library
+/// block lists its `path` before its `apps`, so the most recent path seen when
+/// a line's key equals the appid is that app's library. Only keys are
+/// compared, so size values cannot false-match.
 pub fn find_library_with_app(vdf: &str, app_id: &str) -> Option<String> {
     let mut current_path: Option<String> = None;
     for line in vdf.lines() {
@@ -78,7 +72,7 @@ pub fn find_library_with_app(vdf: &str, app_id: &str) -> Option<String> {
             continue;
         };
         if key == "path" {
-            current_path = Some(value.replace("\\\\", "\\"));
+            current_path = Some(unescape_vdf(value));
         } else if key == app_id {
             return current_path;
         }
@@ -86,7 +80,6 @@ pub fn find_library_with_app(vdf: &str, app_id: &str) -> Option<String> {
     None
 }
 
-/// Steam install root from the registry (HKCU\Software\Valve\Steam).
 #[cfg(windows)]
 pub fn steam_root() -> Option<PathBuf> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
@@ -100,7 +93,6 @@ pub fn steam_root() -> Option<PathBuf> {
     None
 }
 
-/// cfg dir inside a Steam library root.
 fn cfg_dir_in_library(lib: &std::path::Path) -> PathBuf {
     lib.join("steamapps")
         .join("common")
@@ -110,11 +102,9 @@ fn cfg_dir_in_library(lib: &std::path::Path) -> PathBuf {
         .join("cfg")
 }
 
-/// Find `<library>/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg`.
-///
-/// Primary: the library whose `apps` block in libraryfolders.vdf lists CS2
-/// (appid 730). Fallback (vdf missing/reshaped): scan the Steam root plus all
-/// library paths for `steamapps/appmanifest_730.acf` on disk.
+/// Primary: the library whose `apps` block in libraryfolders.vdf lists CS2.
+/// Fallback (vdf missing or reshaped): the Steam root or any library path
+/// with CS2's app manifest on disk.
 pub fn find_cs2_cfg_dir() -> Option<PathBuf> {
     let root = steam_root()?;
     let vdf = fs::read_to_string(root.join("steamapps").join("libraryfolders.vdf")).ok();
@@ -128,13 +118,13 @@ pub fn find_cs2_cfg_dir() -> Option<PathBuf> {
         }
     }
 
-    // Fallback: look for the app manifest on disk.
+    let manifest = format!("appmanifest_{CS2_APP_ID}.acf");
     let mut libraries = vec![root.clone()];
     if let Some(vdf) = &vdf {
         libraries.extend(parse_library_paths(vdf).into_iter().map(PathBuf::from));
     }
     for lib in libraries {
-        if lib.join("steamapps").join("appmanifest_730.acf").exists() {
+        if lib.join("steamapps").join(&manifest).exists() {
             let cfg = cfg_dir_in_library(&lib);
             if cfg.is_dir() {
                 return Some(cfg);
@@ -144,13 +134,11 @@ pub fn find_cs2_cfg_dir() -> Option<PathBuf> {
     None
 }
 
-/// Absolute path our cfg file would have (whether or not it exists yet).
 pub fn cfg_target_path() -> Option<PathBuf> {
     find_cs2_cfg_dir().map(|d| d.join(CFG_FILE_NAME))
 }
 
-/// Write the cfg file into the CS2 cfg directory. Returns the written path.
-/// CS2 loads GSI cfgs at game startup, so the user must (re)start CS2 after.
+/// CS2 loads GSI cfgs at startup, so the user must (re)start CS2 afterwards.
 pub fn install_cfg(token: &str) -> Result<PathBuf, String> {
     let path = cfg_target_path()
         .ok_or("CS2 installation not found (is Steam + CS2 installed?)")?;
@@ -163,9 +151,8 @@ pub fn install_cfg(token: &str) -> Result<PathBuf, String> {
 mod tests {
     use super::*;
 
-    /// Trimmed copy of a real libraryfolders.vdf: two libraries, CS2 (730)
-    /// installed in the FIRST one — the right answer is C:\Data\Games\Steam,
-    /// not the second library.
+    /// Trimmed real libraryfolders.vdf: CS2 (730) is in the first of two
+    /// libraries.
     const SAMPLE_VDF: &str = r#"
 "libraryfolders"
 {
@@ -202,7 +189,6 @@ mod tests {
         let cfg = render_cfg("SECRET123", 31211);
         assert!(cfg.contains(r#""uri" "http://127.0.0.1:31211""#));
         assert!(cfg.contains(r#""token" "SECRET123""#));
-        // allplayers_id is the observer-only spectator signal (see render_cfg).
         for component in [
             "provider",
             "map",
@@ -216,8 +202,6 @@ mod tests {
                 "missing subscription: {component}"
             );
         }
-        // Heartbeat trimmed from Valve's 30s default so heartbeat-only state
-        // (e.g. spectator with no locked target) recovers within ~10s.
         assert!(cfg.contains(r#""heartbeat" "10.0""#), "heartbeat not trimmed");
     }
 
@@ -239,8 +223,7 @@ mod tests {
 
     #[test]
     fn app_size_values_do_not_false_match() {
-        // "72052285161" is the SIZE value of appid 570 in library 0; a number
-        // appearing in the size column (second token) must not count as a match.
+        // The size value of appid 570 in library 0.
         assert_eq!(find_library_with_app(SAMPLE_VDF, "72052285161"), None);
     }
 

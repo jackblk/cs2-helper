@@ -1,9 +1,3 @@
-//! The GSI HTTP server: one `tiny_http` instance on its own thread.
-//!
-//! Flow per request: read body -> JSON parse -> token check -> merge into
-//! `GsiShared` -> invoke the update callback (wired to a Tauri event in
-//! lib.rs; a plain channel in tests). Malformed input never kills the loop.
-
 use std::time::Instant;
 
 use serde::Serialize;
@@ -12,17 +6,14 @@ use tiny_http::{Response, Server};
 use super::payload::{GameState, GsiPayload};
 use super::SharedGsi;
 
-/// What the frontend's debug panel receives per accepted payload.
 #[derive(Debug, Clone, Serialize)]
 pub struct GsiUpdate {
-    /// Raw payload as posted by CS2, with the `auth` block stripped.
+    /// As posted by CS2, minus the `auth` block.
     pub raw: serde_json::Value,
-    /// Merged state after applying this payload.
     pub state: GameState,
 }
 
-/// Bind `addr` (use port 0 for an OS-assigned port in tests) and serve on a
-/// detached thread until process exit. Returns the bound port.
+/// Serves on a detached thread until process exit. Returns the bound port.
 pub fn start_server(
     addr: &str,
     token: String,
@@ -50,7 +41,7 @@ pub fn start_server(
                     continue;
                 }
             };
-            // Lenient typed view over the same JSON (unknown fields ignored).
+            // Lenient typed view; `raw` is still forwarded to the debug panel.
             let payload: GsiPayload = match serde_json::from_value(raw.clone()) {
                 Ok(p) => p,
                 Err(_) => {
@@ -97,7 +88,7 @@ mod tests {
     use std::net::TcpStream;
     use std::sync::mpsc;
 
-    /// Minimal raw HTTP POST; returns the status line (e.g. "HTTP/1.1 200 OK").
+    /// Returns the status line, e.g. "HTTP/1.1 200 OK".
     fn post(port: u16, body: &str) -> String {
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(

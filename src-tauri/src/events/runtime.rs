@@ -13,11 +13,11 @@ use super::core::{self, Active, Latches};
 use crate::config::Config;
 use crate::gsi::payload::GameState;
 
-/// Audio side effects, behind a trait so the runtime is testable without COM.
+/// A trait so the runtime is testable without COM.
 pub trait AudioControl: Send + 'static {
-    /// Set the target process volume. `Ok(true)` if a session existed.
+    /// `Ok(true)` if a session existed.
     fn set_volume(&self, volume: f32) -> Result<bool, String>;
-    /// Current volume; `Ok(None)` when the process has no audio session.
+    /// `Ok(None)` when the process has no audio session.
     fn get_volume(&self) -> Result<Option<f32>, String>;
 }
 
@@ -28,7 +28,6 @@ enum EngineMsg {
     Shutdown,
 }
 
-/// One debug-log line: what happened and what the engine decided.
 #[derive(Debug, Clone, Serialize)]
 pub struct LogEntry {
     /// Unix epoch milliseconds.
@@ -37,25 +36,23 @@ pub struct LogEntry {
     pub decision: String,
 }
 
-/// Exported engine state for the debug panel (`engine:update` + `engine_status`).
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct EngineSnapshot {
-    /// Current duck target; `None` = no reduction (100%).
+    /// `None` means no reduction (100%).
     pub target: Option<f32>,
     pub active: Vec<Active>,
     /// Oldest first, capped at `LOG_CAP`.
     pub log: Vec<LogEntry>,
     pub config: Option<Config>,
     pub config_warnings: Vec<String>,
-    /// Global pause: when true the engine holds 100% and ignores events.
     pub paused: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct EngineOptions {
-    /// Main loop tick (recv_timeout): bounds timer latency.
+    /// `recv_timeout` of the main loop: bounds timer latency.
     pub tick: Duration,
-    /// Session-recovery poll interval (only while ducked).
+    /// Session-recovery poll interval, used only while ducked.
     pub poll: Duration,
 }
 
@@ -68,8 +65,8 @@ impl Default for EngineOptions {
     }
 }
 
-/// Handle owned by Tauri state. Senders are mutex-wrapped so the handle is
-/// `Sync`; the engine thread itself is the only owner of duck state.
+/// The sender is mutex-wrapped so the handle is `Sync`. Duck state lives only
+/// on the engine thread.
 pub struct EngineHandle {
     tx: Mutex<mpsc::Sender<EngineMsg>>,
     snapshot: Arc<Mutex<EngineSnapshot>>,
@@ -93,7 +90,7 @@ impl EngineHandle {
         self.snapshot.lock().unwrap().clone()
     }
 
-    /// Restore volume (if ducked) and stop the engine thread. Idempotent.
+    /// Restores the volume if ducked, then stops the engine thread. Idempotent.
     pub fn shutdown(&self) {
         let _ = self.tx.lock().unwrap().send(EngineMsg::Shutdown);
         if let Some(thread) = self.thread.lock().unwrap().take() {
@@ -131,7 +128,7 @@ pub fn start_engine<A: AudioControl>(
         let mut warnings = warnings;
         let mut state = GameState::default();
         let mut latches = Latches::default();
-        // Last volume we applied; None = restored (or never ducked).
+        // None means restored (or never ducked).
         let mut applied: Option<f32> = None;
         let mut last_poll = Instant::now();
         let mut log: Vec<LogEntry> = Vec::new();
@@ -179,7 +176,6 @@ pub fn start_engine<A: AudioControl>(
                 triggers.extend(core::expire(&mut latches, now));
             }
 
-            // Session recovery: poll only while ducked (or wanting to duck).
             let mut session_gone = false;
             let mut reapply = false;
             if !paused {
@@ -190,8 +186,8 @@ pub fn start_engine<A: AudioControl>(
                     last_poll = now;
                     match audio.get_volume() {
                         Ok(None) => {
-                            // Game closed/crashed: discard ALL duck state (spec:
-                            // "Session loss"). New GSI events rebuild from fresh.
+                            // Game closed or crashed: discard all duck state,
+                            // new GSI events rebuild it from scratch.
                             session_gone = true;
                             was_gone = true;
                             latches.clear();
@@ -201,8 +197,8 @@ pub fn start_engine<A: AudioControl>(
                                 "cs2.exe session gone → reduction state discarded".to_string(),
                             );
                         }
-                        // Session present: re-apply below so a freshly restarted
-                        // cs2.exe immediately regains protection.
+                        // Re-apply below so a restarted cs2.exe immediately
+                        // regains protection.
                         Ok(Some(_)) => {
                             reapply = true;
                             if was_gone {
@@ -283,7 +279,6 @@ mod tests {
     use std::sync::{mpsc, Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    /// Records every set_volume call; session presence is switchable.
     #[derive(Clone, Default)]
     struct FakeAudio {
         sets: Arc<Mutex<Vec<f32>>>,
@@ -343,7 +338,6 @@ mod tests {
         (handle, rx)
     }
 
-    /// Wait until a pushed snapshot satisfies `pred` (2s deadline).
     fn wait_for(
         rx: &mpsc::Receiver<EngineSnapshot>,
         pred: impl Fn(&EngineSnapshot) -> bool,
@@ -451,7 +445,6 @@ mod tests {
         assert!(snap.paused);
         assert_eq!(audio.sets.lock().unwrap().last(), Some(&1.0));
 
-        // Events while paused are ignored: no further duck.
         handle.send_state(flashed);
         std::thread::sleep(Duration::from_millis(100));
         assert_eq!(audio.sets.lock().unwrap().last(), Some(&1.0));

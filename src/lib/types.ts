@@ -1,4 +1,4 @@
-// Shared types mirroring the Rust structs serialized across the Tauri boundary.
+// Mirrors of the Rust structs serialized across the Tauri boundary.
 
 export type EventCfg = { enabled: boolean; volume: number };
 export type TimedEventCfg = EventCfg & { duration_ms: number };
@@ -21,7 +21,6 @@ export type OverlayConfig = {
 
 export type HotkeyCfg = { enabled: boolean; key: string };
 
-// One field per hotkey action, mirroring `[hotkeys.*]` in config.toml.
 export type HotkeysConfig = { pause: HotkeyCfg };
 
 export type AppConfig = {

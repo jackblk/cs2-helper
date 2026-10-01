@@ -1,15 +1,12 @@
-//! Event engine (M3): turns GSI state changes into duck/restore decisions.
-//!
-//! `core` is pure logic (no I/O, no threads); `runtime` owns the engine
-//! thread and audio side effects.
+//! Turns GSI state changes into duck/restore decisions. `core` is pure logic;
+//! `runtime` owns the engine thread and audio side effects.
 
 pub mod core;
 pub mod runtime;
 
-/// The process whose audio sessions we duck. Never anything else.
+/// The only process whose audio is ever ducked.
 pub const TARGET_PROCESS: &str = "cs2.exe";
 
-/// Real `AudioControl` over the M1 Core Audio engine.
 pub struct Cs2Audio;
 
 #[cfg(windows)]
@@ -24,7 +21,7 @@ impl runtime::AudioControl for Cs2Audio {
     }
 }
 
-/// Non-Windows stub so the crate still type-checks off-platform.
+/// Stub so the crate still type-checks off Windows.
 #[cfg(not(windows))]
 impl runtime::AudioControl for Cs2Audio {
     fn set_volume(&self, _volume: f32) -> Result<bool, String> {

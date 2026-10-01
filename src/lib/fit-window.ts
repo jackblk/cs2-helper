@@ -6,10 +6,10 @@ import {
 } from "@tauri-apps/api/window";
 import { type RefObject, useEffect } from "react";
 
-// Keep the window's height equal to its content's height, so the page never
-// needs a scrollbar. Capped to the monitor's work area (the page scrolls only
-// beyond that), and the window is nudged up if it would run off the bottom.
-// Width is left to the user; a maximized window is left alone.
+// Keeps the window height equal to the content height so the page never needs
+// a scrollbar. Capped to the monitor work area (the page scrolls only beyond
+// that), and the window is nudged up if it would run off the bottom. Width is
+// left to the user; a maximized window is left alone.
 //
 // `container` is the padded full-height element, `content` its natural-height
 // child: the window needs content height + container padding.
@@ -44,7 +44,7 @@ export function useFitWindowToContent(
 				);
 				const scale = await win.scaleFactor();
 				const size = (await win.innerSize()).toLogical(scale);
-				// Title bar + borders: outer height minus inner height.
+				// Title bar + borders.
 				const chrome =
 					(await win.outerSize()).toLogical(scale).height - size.height;
 

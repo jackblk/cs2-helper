@@ -137,7 +137,7 @@ body,
 	}
 }
 
-/* Overlay window: fully transparent so only the badge is visible over the game. */
+/* Overlay window: transparent so only the badge shows over the game. */
 html.overlay-mode,
 html.overlay-mode body,
 html.overlay-mode #root {

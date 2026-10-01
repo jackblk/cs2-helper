@@ -32,8 +32,8 @@ type AudioSession = {
 	muted: boolean;
 };
 
-// Module-level so the preview choice survives navigating away from the Debug
-// page (the component unmounts, but the toggle should stay as the user left it).
+// Module-level (and not reset on unmount) so the overlay preview stays as the
+// user left it after navigating away from the Debug page.
 let previewEnabled = false;
 
 export function DebugPage() {
@@ -44,8 +44,6 @@ export function DebugPage() {
 	const [busy, setBusy] = useState(false);
 	const [preview, setPreview] = useState(previewEnabled);
 
-	// Mirror the preview tickbox to the overlay so placement/size can be checked
-	// without a live plant. Persists across navigation; not cleared on unmount.
 	useEffect(() => {
 		previewEnabled = preview;
 		emit("overlay:preview", preview);

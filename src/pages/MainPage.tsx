@@ -73,8 +73,6 @@ function EventRow({
 	enabled: boolean;
 	volume: number;
 	durationMs?: number;
-	// Tooltip lead-in, e.g. "When you're flashed" or "At death". Renders as
-	// "{hintPrefix}, reduce audio to X%" (+ " for Y ms" on timed events).
 	hintPrefix: string;
 	onEnabled: (v: boolean) => void;
 	onVolume: (v: number) => void;
@@ -152,9 +150,8 @@ function EventRow({
 
 const MODIFIER_CODE = /^(Control|Shift|Alt|Meta|OS)(Left|Right)?$/;
 
-// KeyboardEvent → global-shortcut string ("Ctrl+Shift+P", "F10"). Uses the
-// physical `code` so the result does not depend on keyboard layout. Returns
-// null for a bare modifier press (keep waiting for the real key).
+// Uses the physical `code` so the shortcut does not depend on keyboard layout.
+// Returns null for a bare modifier press (keep waiting for the real key).
 function shortcutFromEvent(e: KeyboardEvent): string | null {
 	if (MODIFIER_CODE.test(e.code)) return null;
 	const key = e.code.replace(/^Key/, "").replace(/^Digit/, "");
@@ -166,9 +163,9 @@ function shortcutFromEvent(e: KeyboardEvent): string | null {
 	return [...mods, key].join("+");
 }
 
-// Click, then press the new key combo. The live hotkey is released while
-// recording (otherwise pressing it would toggle pause instead of reaching the
-// webview) and re-registered from the saved config afterwards.
+// The live hotkey is unregistered while recording (otherwise pressing it would
+// toggle pause instead of reaching the webview) and re-registered from the
+// saved config afterwards.
 function HotkeyRecorder({
 	value,
 	disabled,
@@ -256,8 +253,8 @@ export function MainPage() {
 	const [setupOpen, setSetupOpen] = useState<boolean | null>(null);
 	const [editing, setEditing] = useState(false);
 	const [c4Text, setC4Text] = useState("");
-	// Latest `saved`, read inside the seed effect without making it a dependency
-	// (which would re-fire — and loop — on every setSaved).
+	// Latest `saved` for the seed effect without making it a dependency (which
+	// would re-fire, and loop, on every setSaved).
 	const savedRef = useRef<Draft | null>(null);
 	savedRef.current = saved;
 
@@ -306,8 +303,6 @@ export function MainPage() {
 		);
 	}, [snap?.config]);
 
-	// Keep the local text in sync when c4_timer_s changes externally
-	// (discard, reset, reload), mirroring EventRow's durText pattern.
 	const c4Timer = draft?.app.overlay.c4_timer_s;
 	useEffect(() => {
 		if (c4Timer != null) setC4Text(String(c4Timer));
@@ -318,8 +313,6 @@ export function MainPage() {
 		gsi?.last_payload_age_ms != null && gsi.last_payload_age_ms < FRESH_MS;
 
 	const cfgInstalled = gsi?.cfg_installed ?? false;
-	// Collapse automatically once setup is done; expand if not. A user click
-	// (setupOpen non-null) overrides until they navigate away.
 	const setupExpanded = setupOpen ?? !cfgInstalled;
 
 	const installCfg = async () => {
@@ -454,8 +447,7 @@ export function MainPage() {
 	const resetOverlayPosition = async () => {
 		try {
 			const app = await invoke<AppConfig>("overlay_reset_position");
-			// Re-baseline both saved and draft so the cleared position is not
-			// flagged as an unsaved change.
+			// Re-baseline position so it is not flagged as an unsaved change.
 			setSaved((s) => (s ? { ...s, app } : s));
 			setDraft((d) =>
 				d
@@ -480,9 +472,8 @@ export function MainPage() {
 
 	const resetDefaults = async () => {
 		try {
-			// reset_config returns the new (default) config, so seed the form
-			// directly — don't wait for the async engine:update, which can race
-			// command completion and leave the form stuck.
+			// Seed the form from the result instead of waiting for engine:update,
+			// which can race command completion and leave the form stuck.
 			const { config, app } = await invoke<{
 				config: Config;
 				app: AppConfig;

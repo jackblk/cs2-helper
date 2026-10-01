@@ -1,9 +1,5 @@
-//! Global hotkeys (the `[hotkeys.*]` tables; pause defaults to F10).
-//!
-//! Uses tauri-plugin-global-shortcut, which calls Win32 `RegisterHotKey`: no
-//! keyboard hooks, nothing touches the game process. This module keeps the
-//! registered shortcuts in sync with the config and maps a press back to its
-//! action; `lib.rs` performs the action.
+//! Global hotkeys via tauri-plugin-global-shortcut, which uses Win32
+//! `RegisterHotKey`: no keyboard hooks, nothing touches the game process.
 
 use std::sync::Mutex;
 
@@ -12,22 +8,18 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use crate::config::{HotkeyCfg, HotkeysConfig};
 
-/// What a hotkey does when pressed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
-    /// Toggle pause (same as the tray Pause/Resume).
     Pause,
 }
 
-/// Every configurable hotkey with its action. Add new hotkeys here.
+/// Add new hotkeys here.
 fn bindings(cfg: &HotkeysConfig) -> [(Action, &HotkeyCfg); 1] {
     [(Action::Pause, &cfg.pause)]
 }
 
-/// The currently registered shortcuts, for mapping a press to its action.
 static ACTIVE: Mutex<Vec<(Shortcut, Action)>> = Mutex::new(Vec::new());
 
-/// The action bound to `shortcut`, if it is one of ours.
 pub fn action_for(shortcut: &Shortcut) -> Option<Action> {
     ACTIVE
         .lock()
@@ -37,10 +29,8 @@ pub fn action_for(shortcut: &Shortcut) -> Option<Action> {
         .map(|(_, a)| *a)
 }
 
-/// Make the registered shortcuts match `cfg`: validate every enabled key
-/// (parseable, no duplicates), unregister everything, register the new set.
-/// Errors when a key is invalid, duplicated, or already taken by another app
-/// (on a registration failure nothing stays registered).
+/// Errors when a key is invalid, duplicated, or taken by another app. After a
+/// registration failure nothing stays registered.
 pub fn apply(app: &AppHandle, cfg: &HotkeysConfig) -> Result<(), String> {
     let mut next: Vec<(Shortcut, Action, &str)> = Vec::new();
     for (action, h) in bindings(cfg) {
@@ -69,8 +59,7 @@ pub fn apply(app: &AppHandle, cfg: &HotkeysConfig) -> Result<(), String> {
     Ok(())
 }
 
-/// Apply `next`; if that fails, re-apply `prev` so the user keeps working
-/// hotkeys. Returns the error for `next`.
+/// Returns the error for `next` even when reverting to `prev` succeeds.
 pub fn apply_or_revert(
     app: &AppHandle,
     next: &HotkeysConfig,
@@ -81,8 +70,8 @@ pub fn apply_or_revert(
     })
 }
 
-/// Release every hotkey (e.g. while the UI records a new one, so the press
-/// reaches the webview instead of triggering its action).
+/// Used while the UI records a new key, so the press reaches the webview
+/// instead of triggering its action.
 pub fn suspend(app: &AppHandle) -> Result<(), String> {
     ACTIVE.lock().unwrap().clear();
     app.global_shortcut()

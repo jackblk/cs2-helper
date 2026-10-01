@@ -1,5 +1,4 @@
-//! Pure decision logic: state diff -> triggers, latches -> active reduction
-//! set -> min target. No I/O, no clocks (callers pass `now`), fully testable.
+//! Pure decision logic: no I/O and no clocks (callers pass `now`).
 
 use std::time::{Duration, Instant};
 
@@ -17,7 +16,7 @@ pub enum Kind {
     Spectator,
 }
 
-/// One currently-active reduction and its absolute target volume.
+/// `volume` is the absolute target (0.0..=1.0), not relative to a baseline.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Active {
     pub kind: Kind,
@@ -41,8 +40,6 @@ fn in_menu(s: &GameState) -> bool {
     s.activity.as_deref() == Some("menu")
 }
 
-/// True while observing the match rather than playing it. Never in the menu.
-///
 /// `observing` (the presence of the observer-only `allplayers` block) is the
 /// primary signal: it holds even when free-roaming with no locked camera
 /// target. The `is_local_player` fallback covers the camera-on-someone-else
@@ -55,7 +52,6 @@ fn spectating(s: &GameState) -> bool {
         || (!s.is_local_player && s.provider_steamid.is_some() && s.player_steamid.is_some())
 }
 
-/// The set of enabled, currently-active reductions.
 pub fn active(state: &GameState, latches: &Latches, cfg: &Config) -> Vec<Active> {
     if in_menu(state) {
         return Vec::new();
@@ -76,7 +72,7 @@ pub fn active(state: &GameState, latches: &Latches, cfg: &Config) -> Vec<Active>
     out
 }
 
-/// Most protective wins: the minimum volume, or `None` for "no reduction".
+/// Most protective wins (minimum volume). `None` means no reduction.
 pub fn target(active: &[Active]) -> Option<f32> {
     active.iter().map(|a| a.volume).min_by(|a, b| a.total_cmp(b))
 }
@@ -94,8 +90,7 @@ fn kind_name(kind: Kind) -> &'static str {
     }
 }
 
-/// Render the active reductions most-protective first, marking the winner, so
-/// superseded events stay visible. e.g. "flash 15% ◀ win, spectator 60%".
+/// Most protective first, e.g. "flash 15% ◀ win, spectator 60%".
 fn active_list(active: &[Active]) -> String {
     let mut sorted: Vec<&Active> = active.iter().collect();
     sorted.sort_by(|a, b| a.volume.total_cmp(&b.volume));
@@ -110,9 +105,8 @@ fn active_list(active: &[Active]) -> String {
         .join(", ")
 }
 
-/// Human-readable decision for the debug event log. With two or more active
-/// reductions it enumerates all of them (winner marked) so a superseded event
-/// like spectator stays visible; a lone reduction keeps the terse phrasing.
+/// With two or more reductions, all are listed so a superseded one (e.g.
+/// spectator) stays visible in the debug log.
 pub fn describe_decision(prev: Option<f32>, new: Option<f32>, active: &[Active]) -> String {
     match (prev, new) {
         (Some(_), None) => "restore → 100% (no active reductions)".to_string(),
@@ -136,8 +130,7 @@ pub fn describe_decision(prev: Option<f32>, new: Option<f32>, active: &[Active])
     }
 }
 
-/// Edge-detect transitions between two states, updating timed latches.
-/// Returns human-readable trigger descriptions for the event log.
+/// Updates `latches` and returns event-log trigger descriptions.
 pub fn detect(
     prev: &GameState,
     next: &GameState,
@@ -156,7 +149,7 @@ pub fn detect(
         return triggers;
     }
 
-    // Death: LOCAL player health goes >0 -> 0.
+    // While spectating, `health` belongs to the observed player, not us.
     let died = prev.is_local_player
         && next.is_local_player
         && prev.health.is_some_and(|h| h > 0)
@@ -169,7 +162,6 @@ pub fn detect(
             "death detected (disabled)".to_string()
         });
     } else if latches.death_until.is_some() {
-        // Early end: respawn, or the next round's freeze time.
         let respawned = next.is_local_player && next.health.is_some_and(|h| h > 0);
         let freezetime = next.round_phase.as_deref() == Some("freezetime")
             && prev.round_phase.as_deref() != Some("freezetime");
@@ -179,7 +171,6 @@ pub fn detect(
         }
     }
 
-    // Bomb: edge into "exploded".
     if next.bomb.as_deref() == Some("exploded") && prev.bomb.as_deref() != Some("exploded") {
         latches.bomb_until = Some(now + Duration::from_millis(cfg.bomb.duration_ms));
         triggers.push(if cfg.bomb.enabled {
@@ -207,7 +198,6 @@ pub fn detect(
     triggers
 }
 
-/// Expire timed latches. Returns trigger descriptions for the event log.
 pub fn expire(latches: &mut Latches, now: Instant) -> Vec<String> {
     let mut triggers = Vec::new();
     if latches.death_until.is_some_and(|d| now >= d) {
@@ -228,7 +218,6 @@ mod tests {
     use crate::gsi::payload::GameState;
     use std::time::{Duration, Instant};
 
-    /// Local player, alive, in a live round.
     fn alive() -> GameState {
         GameState {
             provider_steamid: Some("A".into()),
@@ -275,7 +264,7 @@ mod tests {
         let a = active(&s, &latches, &cfg);
         assert!(a.iter().any(|r| r.kind == Kind::Flash));
         assert!(a.iter().any(|r| r.kind == Kind::Spectator));
-        // min precedence: flash 0.15 beats spectator 0.60
+        // Min precedence: flash 0.15 beats spectator 0.60.
         assert_eq!(target(&a), Some(0.15));
     }
 
@@ -284,13 +273,11 @@ mod tests {
         let cfg = Config::default();
         let latches = Latches::default();
         // Free-roam observer: allplayers present, but the `player` block still
-        // looks local (is_local_player true, no retargeted steamid). Must still
-        // count as spectating — this is the case is_local_player alone missed.
+        // looks local (is_local_player true, no retargeted steamid).
         let mut s = alive();
         s.observing = true;
         let a = active(&s, &latches, &cfg);
         assert!(a.iter().any(|r| r.kind == Kind::Spectator), "{a:?}");
-        // Menu still suppresses everything.
         s.activity = Some("menu".into());
         assert!(active(&s, &latches, &cfg).is_empty());
     }
@@ -299,9 +286,9 @@ mod tests {
     fn spectator_requires_steamids_and_not_menu() {
         let cfg = Config::default();
         let latches = Latches::default();
-        // Default state has is_local_player == false but no steamids: NOT spectating.
+        // Default state has is_local_player == false but no steamids.
         assert!(active(&GameState::default(), &latches, &cfg).is_empty());
-        // In the menu nothing is ever active, even with stale flash values.
+        // Stale flash values must not count in the menu.
         let mut s = alive();
         s.activity = Some("menu".into());
         s.flashed = Some(255);
@@ -353,8 +340,7 @@ mod tests {
 
     #[test]
     fn decision_lists_superseded_events_when_multiple_active() {
-        // Flash wins (0.15) while spectator (0.60) is also active but overridden.
-        // Order is normalized most-protective first regardless of input order.
+        // Output is most-protective first regardless of input order.
         let a = vec![
             Active { kind: Kind::Spectator, volume: 0.60 },
             Active { kind: Kind::Flash, volume: 0.15 },
@@ -383,10 +369,8 @@ mod tests {
         let triggers = detect(&alive(), &dead(), &mut latches, &cfg, t0);
         assert!(triggers.iter().any(|t| t.contains("death")), "{triggers:?}");
         assert!(latches.death_until.is_some());
-        // Not yet expired just before the deadline.
         assert!(expire(&mut latches, t0 + Duration::from_millis(999)).is_empty());
         assert!(latches.death_until.is_some());
-        // Expired at the deadline.
         let expired = expire(&mut latches, t0 + Duration::from_millis(1000));
         assert!(expired.iter().any(|t| t.contains("death")), "{expired:?}");
         assert!(latches.death_until.is_none());
@@ -408,7 +392,6 @@ mod tests {
         assert!(latches.death_until.is_some());
         let a = active(&spectating_state, &latches, &cfg);
         assert_eq!(target(&a), Some(0.30)); // death 0.30 wins during overlap
-        // Death timer expires -> spectator volume governs.
         expire(&mut latches, t0 + Duration::from_millis(1000));
         let a = active(&spectating_state, &latches, &cfg);
         assert_eq!(target(&a), Some(0.60));
@@ -418,12 +401,10 @@ mod tests {
     fn death_ends_early_on_respawn_and_freezetime() {
         let cfg = Config::default();
         let t0 = Instant::now();
-        // Respawn: local player healthy again.
         let mut latches = Latches::default();
         detect(&alive(), &dead(), &mut latches, &cfg, t0);
         detect(&dead(), &alive(), &mut latches, &cfg, t0);
         assert!(latches.death_until.is_none());
-        // Freeze time: next round starts while still dead.
         let mut latches = Latches::default();
         detect(&alive(), &dead(), &mut latches, &cfg, t0);
         let mut freeze = dead();
@@ -457,10 +438,8 @@ mod tests {
         let triggers = detect(&planted, &exploded, &mut latches, &cfg, t0);
         assert!(triggers.iter().any(|t| t.contains("bomb")), "{triggers:?}");
         let deadline = latches.bomb_until.unwrap();
-        // Same state again: no re-trigger, deadline unchanged.
         detect(&exploded, &exploded, &mut latches, &cfg, t0 + Duration::from_millis(100));
         assert_eq!(latches.bomb_until, Some(deadline));
-        // Expires after duration_ms.
         expire(&mut latches, t0 + Duration::from_millis(1500));
         assert!(latches.bomb_until.is_none());
     }

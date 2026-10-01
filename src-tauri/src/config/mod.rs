@@ -1,8 +1,6 @@
-//! File-based TOML configuration (M3).
-//!
-//! Lenient by design (root spec "Configuration"): parsing never hard-errors.
-//! Unknown tables/keys warn and are ignored; invalid values warn and fall
-//! back to that key's default; an unreadable file falls back to all defaults.
+//! TOML config. Parsing never hard-errors: unknown tables/keys warn and are
+//! ignored, invalid values warn and keep that key's default, and an
+//! unreadable file falls back to all defaults.
 
 use std::fs;
 use std::path::Path;
@@ -12,12 +10,10 @@ use serde::{Deserialize, Serialize};
 
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 
-/// The commented default config file. Single source of truth for default
-/// values (the `Default` impls read it), comments, and layout (`serialize`
-/// fills it in with current values).
+/// Single source of truth for default values (the `Default` impls read it),
+/// comments and layout (`serialize` fills it in with current values).
 pub const DEFAULT_TOML: &str = include_str!("default.toml");
 
-/// `default.toml`, deserialized strictly (it must always be valid).
 #[derive(Deserialize)]
 struct DefaultFile {
     audio: Config,
@@ -36,14 +32,13 @@ static DEFAULTS: LazyLock<DefaultFile> = LazyLock::new(|| {
     toml::from_str(DEFAULT_TOML).expect("built-in default.toml must be valid")
 });
 
-/// One on/off event reduction. `volume` is the absolute target (0.0..=1.0).
+/// `volume` is an absolute target in 0.0..=1.0.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct EventCfg {
     pub enabled: bool,
     pub volume: f32,
 }
 
-/// A timed reduction (death, bomb): duck for `duration_ms`, then restore.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TimedEventCfg {
     pub enabled: bool,
@@ -51,8 +46,8 @@ pub struct TimedEventCfg {
     pub duration_ms: u64,
 }
 
-/// In-game overlay settings (the `[overlay]` table). `pos_*` in logical pixels;
-/// `None` means default top-center placement. `scale` multiplies the base size.
+/// `pos_*` are logical pixels (`None`: default top-center placement);
+/// `scale` multiplies the base size.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OverlayConfig {
     pub enabled: bool,
@@ -69,18 +64,15 @@ impl Default for OverlayConfig {
     }
 }
 
-/// One global hotkey. `key` is a shortcut string such as "F10" or
-/// "Ctrl+Shift+P", in the global-shortcut plugin's syntax.
+/// `key` uses the global-shortcut plugin's syntax, e.g. "F10" or "Ctrl+Shift+P".
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HotkeyCfg {
     pub enabled: bool,
     pub key: String,
 }
 
-/// All global hotkeys (the `[hotkeys.*]` tables), one field per action.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HotkeysConfig {
-    /// Toggle pause (same as the tray Pause/Resume).
     pub pause: HotkeyCfg,
 }
 
@@ -104,17 +96,15 @@ impl Default for Config {
     }
 }
 
-/// App-level settings (the `[app]` table). Source of truth for autostart.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppConfig {
-    /// Launch with Windows (a Startup-folder shortcut; not the registry).
+    /// Source of truth for autostart, implemented as a Startup-folder
+    /// shortcut (not the registry).
     pub start_with_windows: bool,
-    /// Start hidden in the tray instead of showing the window.
     pub start_minimized: bool,
-    /// `#[serde(default)]` so UI JSON / older files without `[overlay]` still load.
+    // `serde(default)`: UI JSON and older files may omit these tables.
     #[serde(default)]
     pub overlay: OverlayConfig,
-    /// `#[serde(default)]` so UI JSON / older files without `[hotkeys]` still load.
     #[serde(default)]
     pub hotkeys: HotkeysConfig,
 }
@@ -130,7 +120,6 @@ impl Default for AppConfig {
     }
 }
 
-/// The parsed `default.toml` document (comments and layout preserved).
 fn default_doc() -> toml_edit::DocumentMut {
     DEFAULT_TOML
         .parse()
@@ -143,9 +132,8 @@ fn float(v: f32) -> toml_edit::Item {
     toml_edit::value(v.to_string().parse::<f64>().unwrap_or(v as f64))
 }
 
-/// Render the config as commented TOML with the given values: `default.toml`
-/// with each value replaced. Round-trips: `parse(serialize(c, a))` yields
-/// `(c, a, [])`.
+/// `default.toml` with each value replaced, comments kept. Round-trips:
+/// `parse(serialize(c, a))` yields `(c, a, [])`.
 pub fn serialize(config: &Config, app: &AppConfig) -> String {
     use toml_edit::value;
     let mut doc = default_doc();
@@ -182,17 +170,16 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
     doc.to_string()
 }
 
-/// The commented default config written on first run and by `reset`.
 pub fn default_file_contents() -> String {
     DEFAULT_TOML.to_string()
 }
 
-/// Add every table/key present in `default.toml` but missing from `text`
-/// (e.g. sections introduced after the file was written), with their default
-/// values and comments. New tables go after their existing siblings (or at
-/// the end), new keys at the end of their table; existing content is never
-/// modified. Returns `None` when nothing is missing or `text` is not valid
-/// TOML (the parser then reports it; never rewrite a broken file).
+/// Add every table/key of `default.toml` missing from `text` (e.g. settings
+/// added after the file was written), with default values and comments. New
+/// tables go after their existing siblings (or at the end), new keys at the
+/// end of their table; existing content is never modified. Returns `None`
+/// when nothing is missing or `text` is not valid TOML (`parse` reports it; a
+/// broken file is never rewritten).
 pub fn add_missing(text: &str) -> Option<String> {
     let mut doc: toml_edit::DocumentMut = text.parse().ok()?;
     let added = merge_missing(doc.as_table_mut(), default_doc().as_table());
@@ -227,8 +214,8 @@ fn fresh_copy(item: &toml_edit::Item) -> toml_edit::Item {
     let mut t = toml_edit::Table::new();
     t.set_implicit(src.is_implicit());
     *t.decor_mut() = src.decor().clone();
-    // toml_edit attaches the file's header comment to the first table; don't
-    // copy it along when that table is the one being added.
+    // toml_edit attaches the file's header comment (up to the first blank
+    // line, LF endings) to the first table; don't copy it along with it.
     let header = DEFAULT_TOML.split_inclusive("\n\n").next().unwrap_or("");
     if let Some(prefix) = src.decor().prefix().and_then(|p| p.as_str()) {
         if let Some(rest) = prefix.strip_prefix(header) {
@@ -242,16 +229,13 @@ fn fresh_copy(item: &toml_edit::Item) -> toml_edit::Item {
     toml_edit::Item::Table(t)
 }
 
-/// Write the config file from the given values (no backup). Used to persist
-/// settings changed from the UI / tray.
 pub fn write(path: &Path, config: &Config, app: &AppConfig) -> Result<(), String> {
     fs::write(path, serialize(config, app))
         .map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-/// Load the config, creating a commented default file on first run and
-/// appending sections/keys missing from an older file (see `add_missing`).
-/// Never fails: any problem falls back to defaults plus a warning.
+/// Creates the default file on first run and adds missing settings to older
+/// files. Never fails: any problem falls back to defaults plus a warning.
 pub fn load_or_create(path: &Path) -> (Config, AppConfig, Vec<String>) {
     match fs::read_to_string(path) {
         Ok(text) => match add_missing(&text) {
@@ -288,7 +272,6 @@ pub fn load_or_create(path: &Path) -> (Config, AppConfig, Vec<String>) {
     }
 }
 
-/// Back the current file up to `config.toml.bak`, then write defaults.
 pub fn reset(path: &Path) -> Result<(), String> {
     if path.exists() {
         let backup = path.with_extension("toml.bak");
@@ -297,8 +280,6 @@ pub fn reset(path: &Path) -> Result<(), String> {
     fs::write(path, default_file_contents()).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-/// Parse config text leniently. Always returns a usable `Config`; problems
-/// are reported as human-readable warnings (shown in the debug panel).
 pub fn parse(text: &str) -> (Config, AppConfig, Vec<String>) {
     let mut cfg = Config::default();
     let mut app = AppConfig::default();
@@ -371,7 +352,7 @@ pub fn parse(text: &str) -> (Config, AppConfig, Vec<String>) {
                     }
                 }
             }
-            other =>warnings.push(format!("unknown table [{other}] ignored")),
+            other => warnings.push(format!("unknown table [{other}] ignored")),
         }
     }
     (cfg, app, warnings)
@@ -420,7 +401,6 @@ fn apply_hotkey(table: &toml::Table, name: &str, out: &mut HotkeyCfg, warnings: 
     }
 }
 
-/// Whether `s` parses as a global shortcut ("F10", "Ctrl+Shift+P", ...).
 pub fn is_valid_shortcut(s: &str) -> bool {
     s.parse::<tauri_plugin_global_shortcut::Shortcut>().is_ok()
 }
@@ -550,7 +530,6 @@ mod tests {
         assert_eq!(o.pos_x, None);
         assert_eq!(o.pos_y, None);
 
-        // Round-trip with a saved position and non-default scale.
         let mut a = AppConfig::default();
         a.overlay.enabled = false;
         a.overlay.scale = 1.5;
@@ -581,7 +560,6 @@ mod tests {
         assert!(warnings.is_empty(), "{warnings:?}");
         assert_eq!(c, Config::default());
         assert_eq!(a, AppConfig::default());
-        // Serializing defaults reproduces the file's settings.
         let (c2, a2, w2) = parse(&serialize(&c, &a));
         assert_eq!((c2, a2), (c, a));
         assert!(w2.is_empty(), "{w2:?}");
@@ -619,7 +597,6 @@ mod tests {
 
     #[test]
     fn add_missing_appends_hotkeys_to_a_pre_hotkeys_file() {
-        // A file written before [hotkeys] existed: everything else identical.
         let old = DEFAULT_TOML
             .split("\n# Global hotkeys")
             .next()
@@ -631,7 +608,6 @@ mod tests {
 
     #[test]
     fn add_missing_fills_gaps_and_keeps_existing_text() {
-        // A sparse hand-written file: no header, partial tables, a user comment.
         let old = "# my notes\n[audio.flash]\nvolume = 0.2\n\n[overlay]\nenabled = false\n";
         let patched = add_missing(old).expect("something was missing");
         let mut rest = patched.as_str();
@@ -651,7 +627,6 @@ mod tests {
         assert_eq!(a.overlay.scale, 1.0, "missing key added with default");
         assert_eq!(a.hotkeys.pause.key, "F10");
 
-        // Complete files and broken files are left alone.
         assert_eq!(add_missing(&patched), None);
         assert_eq!(add_missing(DEFAULT_TOML), None);
         assert_eq!(add_missing("this is { not toml"), None);
@@ -679,7 +654,6 @@ mod tests {
         assert!(app.start_minimized);
         assert!(warnings.is_empty(), "{warnings:?}");
 
-        // No [app] table → defaults, no warning.
         let (_c2, app2, warnings2) = parse("[audio.flash]\nvolume = 0.2\n");
         assert_eq!(app2, AppConfig::default());
         assert!(warnings2.is_empty(), "{warnings2:?}");
@@ -689,7 +663,7 @@ mod tests {
     fn app_unknown_key_and_bad_type_warn_and_fall_back() {
         let (_c, app, warnings) = parse("[app]\nstart_with_windows = \"yes\"\nfoo = 1\n");
         assert!(!app.start_with_windows, "bad type keeps default false");
-        assert_eq!(warnings.len(), 2, "{warnings:?}"); // bad type + unknown key
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
         assert!(warnings.iter().any(|w| w.contains("app.start_with_windows")));
         assert!(warnings.iter().any(|w| w.contains("app.foo")));
     }
@@ -725,7 +699,7 @@ mod tests {
         assert_eq!(c2, c);
         assert_eq!(a2, a);
         assert!(warnings.is_empty(), "{warnings:?}");
-        // It must still be human-commented.
+        // Comments survive serialization.
         assert!(serialize(&c, &a).contains('#'));
     }
 
@@ -763,8 +737,7 @@ mod tests {
         assert_eq!(c.spectator.volume, 0.60);
     }
 
-    /// The full config sample from docs/spec.md (minus the M5 hotkey table).
-    const SPEC_SAMPLE: &str = r#"
+    const AUDIO_SAMPLE: &str = r#"
 [audio.death]
 enabled = true
 volume = 0.30
@@ -785,10 +758,10 @@ volume = 0.60
 "#;
 
     #[test]
-    fn parses_spec_sample_without_warnings() {
-        let (c, _app, warnings) = parse(SPEC_SAMPLE);
+    fn parses_audio_sample_without_warnings() {
+        let (c, _app, warnings) = parse(AUDIO_SAMPLE);
         assert_eq!(warnings, Vec::<String>::new());
-        assert!(!c.spectator.enabled); // differs from default — really parsed
+        assert!(!c.spectator.enabled); // non-default, so it was really parsed
         assert_eq!(c.bomb.duration_ms, 1500);
     }
 
@@ -797,8 +770,8 @@ volume = 0.60
         let (c, _app, warnings) = parse(
             "[blackflash]\nenabled = true\n\n[audio.death]\nvolume = 0.4\nfoo = 1\n\n[audio.hotkey]\nkey = \"F10\"\n",
         );
-        assert_eq!(c.death.volume, 0.4); // known key still applied
-        assert_eq!(warnings.len(), 3, "{warnings:?}"); // blackflash, foo, hotkey
+        assert_eq!(c.death.volume, 0.4);
+        assert_eq!(warnings.len(), 3, "{warnings:?}");
         assert!(warnings.iter().any(|w| w.contains("blackflash")));
         assert!(warnings.iter().any(|w| w.contains("audio.death.foo")));
         assert!(warnings.iter().any(|w| w.contains("audio.hotkey")));
@@ -809,9 +782,9 @@ volume = 0.60
         let (c, _app, warnings) = parse(
             "[audio.flash]\nenabled = \"yes\"\nvolume = 1.5\n\n[audio.bomb]\nduration_ms = 0\n",
         );
-        assert!(c.flash.enabled); // default kept
-        assert_eq!(c.flash.volume, 0.15); // default kept (1.5 out of range)
-        assert_eq!(c.bomb.duration_ms, 1500); // default kept (must be > 0)
+        assert!(c.flash.enabled);
+        assert_eq!(c.flash.volume, 0.15);
+        assert_eq!(c.bomb.duration_ms, 1500);
         assert_eq!(warnings.len(), 3, "{warnings:?}");
     }
 
@@ -837,11 +810,9 @@ volume = 0.60
         assert_eq!(c, Config::default());
         assert!(warnings.is_empty(), "{warnings:?}");
         assert!(path.exists());
-        // The generated file must round-trip without warnings.
         let (c2, _app2, warnings2) = load_or_create(&path);
         assert_eq!(c2, Config::default());
         assert!(warnings2.is_empty(), "{warnings2:?}");
-        // And it should be commented for humans.
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains('#'));
     }
