@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState } from "react";
 import { C4_FUSE_DEFAULT, defuseColor } from "@/lib/defuse";
 import type {
@@ -95,6 +96,19 @@ export function Overlay() {
 		return () => cancelAnimationFrame(raf);
 	}, [cfg.c4_timer_s, cfg.safety_margin_s]);
 
+	// Edit mode: a left press anywhere in the window drags it. Started from JS
+	// rather than `data-tauri-drag-region`, which only fires when the pressed
+	// element itself carries the attribute, so pressing the badge (a child)
+	// would not drag.
+	useEffect(() => {
+		if (!editing) return;
+		const onMouseDown = (e: MouseEvent) => {
+			if (e.button === 0) getCurrentWindow().startDragging();
+		};
+		window.addEventListener("mousedown", onMouseDown);
+		return () => window.removeEventListener("mousedown", onMouseDown);
+	}, [editing]);
+
 	// Show only while a plant is counting down, while positioning, or while the
 	// Debug page is open (preview). Otherwise the overlay stays hidden in play.
 	const show = editing || preview || remaining != null;
@@ -111,7 +125,6 @@ export function Overlay() {
 
 	return (
 		<div
-			{...(editing ? { "data-tauri-drag-region": true } : {})}
 			className={cn(
 				"flex h-screen w-screen select-none flex-col items-center justify-center font-mono",
 				editing &&
