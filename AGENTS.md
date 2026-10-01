@@ -6,11 +6,11 @@ Guidance for working in this repository.
 
 **CS2 Helper** — a Windows-only desktop utility for hearing protection / accessibility for Counter-Strike 2. It ducks **only cs2.exe's** per-app volume during loud game events (death, flashbang, bomb, spectating), driven by CS2 **Game State Integration (GSI)** HTTP callbacks and **Windows Core Audio**.
 
-**Anti-cheat safe by design:** never reads game memory, injects DLLs, hooks rendering, or modifies game files. Only consumes official GSI events and controls OS audio APIs. Full spec: [docs/spec.md](docs/spec.md) (milestone roadmap M1–M5; M-numbers below refer to it).
+**Anti-cheat safe by design:** never reads game memory, injects DLLs, hooks rendering, or modifies game files. Only consumes official GSI events and controls OS audio APIs. Design intent and wishlist: [docs/spec.md](docs/spec.md). It is not a strict plan; where it and the code disagree, the code wins.
 
 ## Stack
 
-* **Tauri v2** (Rust backend) + **React 19** + **TypeScript** + **Vite 7**, package manager **pnpm**.
+* **Tauri v2** (Rust backend) + **React 19** + **TypeScript** + **Vite 8**, package manager **pnpm**.
 * **Styling:** Tailwind CSS v4 (`@import "tailwindcss"` in `src/App.css`) + **shadcn/ui**.
 * **Formatting/linting:** Biome (tabs, not spaces — don't fight it).
 * **Audio:** `windows` crate (windows-rs), gated `#![cfg(windows)]`.
@@ -26,6 +26,17 @@ cargo check --manifest-path src-tauri/Cargo.toml   # typecheck Rust without laun
 
 Run the frontend typechecker with `pnpm tsc --noEmit`.
 
+### Versioning
+
+`package.json` is the single source of the app version. `src-tauri/tauri.conf.json` reads it via `"version": "../package.json"`, and `scripts/version.mjs` keeps `src-tauri/Cargo.toml` and `Cargo.lock` in sync.
+
+```sh
+pnpm bump 0.3.4          # set the version in package.json, Cargo.toml and Cargo.lock
+pnpm version:check       # fail if they disagree
+```
+
+Releases are cut by pushing a tag equal to the version (e.g. `0.3.4`). The release workflow runs `node scripts/version.mjs check <tag>` first and fails on a mismatch.
+
 Guidelines:
 
 * Do not use `cd` or `git -C` command if you don't need to. You're already in the repo root, and all commands are designed to be run from there.
@@ -37,7 +48,7 @@ Guidelines:
 * Add components with `pnpm dlx shadcn@latest add <name>`. Config in [components.json](components.json): style `radix-nova`, baseColor `neutral`, icons `lucide-react`.
 * Import via the `@/` alias (`@/components/ui/button`, `@/lib/utils`). The alias resolves to `src/` (wired in both `vite.config.ts` and `tsconfig.json`).
 * Use the `cn()` helper from `@/lib/utils` for conditional classNames.
-* Note: `src/App.tsx` is currently an audio-engine test panel using raw elements (predates the shadcn rule) — migrate it to shadcn when touched. It is the seed of **debug mode** (see spec): a diagnostics panel that grows with each milestone; the minimal end-user UI ("main mode") comes in M4 with a button to swap into debug mode.
+* Two pages under `HashRouter`: the **Main** page (`src/pages/MainPage.tsx`, the end-user UI) and the **Debug** page (`src/pages/DebugPage.tsx`, diagnostics that grow with each feature). `src/components/Layout.tsx` holds the shared header and the page switch.
 
 ## Architecture
 
@@ -45,18 +56,18 @@ Guidelines:
 CS2 ──GSI HTTP POST──> GSI server ──> Event engine ──> Audio engine ──> Windows Core Audio (cs2.exe session only)
 ```
 
-Planned Rust module layout under `src-tauri/src/` (per the spec): `audio/`, `gsi/`, `events/`, `tray/`, `config/`, `platform/`.
+Rust modules under `src-tauri/src/`: `audio/`, `gsi/`, `events/`, `config/`, `autostart/`, `hotkey.rs`, `overlay.rs`. Tray, window lifecycle and the Tauri commands live in `lib.rs`.
 
 **Status:**
 
 * ✅ `src-tauri/src/audio/mod.rs` — Core Audio engine. Enumerates sessions across all active render endpoints, matches by process name, get/set per-process master volume. All COM work runs on a dedicated MTA thread via `with_com` (interface pointers never escape it). Exposed as Tauri commands `list_audio_sessions` / `set_process_volume` / `get_process_volume` in `lib.rs`.
-* ✅ `src-tauri/src/gsi/` — GSI server (M2). `tiny_http` on `127.0.0.1:31211` in its own thread; per-install auth token in app data dir; cfg generator/installer (Steam registry + libraryfolders.vdf `apps`-block discovery, appid 730); lenient typed payload parsing merged into a shared `GameState`; `gsi:update` Tauri event feeds the debug panel. Commands: `gsi_status` / `install_gsi_cfg`.
-* ✅ `src-tauri/src/config/` — TOML config (M3). Lenient parse (warn + default, never hard-error), commented default file in app data dir, reset with `.bak` backup. Commands: `reload_config` / `reset_config` / `config_path`.
-* ✅ `src-tauri/src/events/` — event engine (M3). Pure core (`core.rs`: state diff → death/flash/bomb/spectator triggers → min-volume target) + engine thread (`runtime.rs`: mpsc loop, `recv_timeout` tick for timers and poll-while-ducked session recovery, audio behind `AudioControl` trait, restore-on-exit). `engine:update` Tauri event + `engine_status` command feed the debug panel.
-* ✅ M4.1 tray/autostart/window lifecycle (`src-tauri/src/autostart/`, tray + window wiring in `lib.rs`): engine pause, tray menu, hide-to-tray, single-instance, Startup-folder shortcut, `[app]` table. Commands: `set_paused` / `get_app_settings`.
-* ✅ M4.2 main-mode UI (`src/pages/`, `src/components/Layout.tsx`): `HashRouter` with a Main page (status + setup checklist + editable settings, Save/Discard, reset-on-warnings) and a Debug page (the former diagnostics panel). In-app edits persist via the `save_config` command (reuses the M4.1 serializer). Shared TS types in `src/lib/types.ts`.
-* ✅ Overlay: transparent always-on-top `overlay` window (`src-tauri/src/overlay.rs`, route in `src/pages/Overlay.tsx`) showing a bomb defuse timer from GSI plant state + `player.team`/`defusekit`. Config `[overlay]` in `AppConfig`. Commands: `overlay_edit_start` / `overlay_edit_finish`.
-* ⬜ M5 hotkey override.
+* ✅ `src-tauri/src/gsi/` — GSI server. `tiny_http` on `127.0.0.1:31211` in its own thread; per-install auth token in app data dir; cfg generator/installer (Steam registry + libraryfolders.vdf `apps`-block discovery, appid 730); lenient typed payload parsing merged into a shared `GameState`; `gsi:update` Tauri event feeds the debug panel. Commands: `gsi_status` / `install_gsi_cfg` / `open_gsi_cfg_dir`.
+* ✅ `src-tauri/src/config/` — TOML config. Lenient parse (warn + default, never hard-error), reset with `.bak` backup. `default.toml` (embedded with `include_str!`) is the single source of default values, comments and layout: the Rust `Default` impls deserialize it, first run and Reset write it verbatim, `serialize()` fills current values into it with `toml_edit` (so saved files keep the comments), and `add_missing()` appends tables/keys missing from a user's file on load without touching existing content. Commands: `reload_config` / `reset_config` / `save_config` / `config_path` / `open_config_dir`.
+* ✅ `src-tauri/src/events/` — event engine. Pure core (`core.rs`: state diff → death/flash/bomb/spectator triggers → min-volume target) + engine thread (`runtime.rs`: mpsc loop, `recv_timeout` tick for timers and poll-while-ducked session recovery, audio behind `AudioControl` trait, restore-on-exit). `engine:update` Tauri event + `engine_status` command feed the debug panel.
+* ✅ Tray/autostart/window lifecycle (`src-tauri/src/autostart/`, tray + window wiring in `lib.rs`): engine pause, tray menu, hide-to-tray, single-instance, Startup-folder shortcut, `[app]` table. Commands: `set_paused` / `get_app_settings`.
+* ✅ Main/Debug UI (`src/pages/`, `src/components/Layout.tsx`): Main page (status + setup checklist + editable settings, Save/Discard, reset-on-warnings) and Debug page (diagnostics). In-app edits persist via `save_config`. Shared TS types in `src/lib/types.ts`. `src/lib/fit-window.ts` (`useFitWindowToContent`, used in `Layout.tsx`) resizes the main window's height to its content via a ResizeObserver (capped to the monitor work area; width left to the user; skipped while maximized), so any content height change resizes the window.
+* ✅ Overlay: transparent always-on-top `overlay` window (`src-tauri/src/overlay.rs`, route in `src/pages/Overlay.tsx`) showing a bomb defuse timer from GSI plant state + `player.team`/`defusekit`. Config `[overlay]` in `AppConfig`. Edit mode drags via `startDragging()`; the Size slider previews live with a sample reading. Commands: `overlay_edit_start` / `overlay_edit_finish` / `overlay_reset_position` / `overlay_preview_scale`.
+* ✅ Hotkeys (`src-tauri/src/hotkey.rs`): global hotkeys through `tauri-plugin-global-shortcut` (Win32 `RegisterHotKey`, no keyboard hooks). Config is one table per action, `[hotkeys.<action>]` with `enabled` / `key` (e.g. `"F10"`, `"Ctrl+Shift+P"`); today only `[hotkeys.pause]` (default F10, shares `toggle_paused()` with the tray). To add one: a field in `HotkeysConfig`, a line in `bindings()`, a UI row. Duplicate keys are rejected; a key taken by another app fails the save and keeps the old bindings. A bound key is captured system-wide, so CS2 never receives it. Commands: `hotkey_capture_start` / `hotkey_capture_end` (unregister while the UI records a key).
 
 ## Key design decisions
 
