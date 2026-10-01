@@ -38,6 +38,7 @@ import type {
 
 const DEFAULT_OVERLAY: OverlayConfig = {
 	enabled: true,
+	bomb_timer: true,
 	c4_timer_s: C4_FUSE_DEFAULT,
 	safety_margin_s: 0,
 	pos_x: null,
@@ -122,7 +123,7 @@ export function Overlay() {
 	}, [cfg.c4_timer_s, cfg.safety_margin_s]);
 
 	if (session) return <EditSurface session={session} />;
-	if (!preview && remaining == null) return null;
+	if (!preview && (remaining == null || !cfg.bomb_timer)) return null;
 
 	const color =
 		remaining == null
@@ -288,7 +289,11 @@ function EditToolbar({
 					height: TOOLBAR_SIZE.height,
 				}}
 			>
-				<ToolbarButton label="Cancel" onClick={onCancel}>
+				<ToolbarButton
+					label="Cancel"
+					onClick={onCancel}
+					className="text-red-500 hover:bg-red-500/15 hover:text-red-500"
+				>
 					<X />
 				</ToolbarButton>
 				<ToolbarButton label="Smaller" onClick={onSmaller}>
@@ -297,7 +302,11 @@ function EditToolbar({
 				<ToolbarButton label="Larger" onClick={onLarger}>
 					<Plus />
 				</ToolbarButton>
-				<ToolbarButton label="Save" onClick={onSave}>
+				<ToolbarButton
+					label="Save"
+					onClick={onSave}
+					className="text-emerald-400 hover:bg-emerald-400/15 hover:text-emerald-400"
+				>
 					<Check />
 				</ToolbarButton>
 			</div>
@@ -308,10 +317,12 @@ function EditToolbar({
 function ToolbarButton({
 	label,
 	onClick,
+	className = "text-white hover:bg-white/15 hover:text-white",
 	children,
 }: {
 	label: string;
 	onClick?: () => void;
+	className?: string;
 	children: ReactNode;
 }) {
 	return (
@@ -323,7 +334,7 @@ function ToolbarButton({
 					aria-label={label}
 					disabled={!onClick}
 					onClick={onClick}
-					className="text-white hover:bg-white/15 hover:text-white"
+					className={className}
 				>
 					{children}
 				</Button>

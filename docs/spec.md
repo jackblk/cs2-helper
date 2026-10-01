@@ -81,6 +81,13 @@ Detected from GSI state diffs:
 * **Bomb**: bomb explodes → duck to `audio.bomb.volume` for `audio.bomb.duration_ms`, then restore.
 * **Spectator**: after death, while spectating → duck to `audio.spectator.volume`; restore when the player regains control.
 
+### Overlay
+
+A transparent, click-through, always-on-top window drawn over CS2 (needs borderless windowed, not exclusive fullscreen). It hosts small widgets; today only the **bomb timer**, which counts down from the plant (`overlay.c4_timer_s`, 40 s by default) and colours itself by whether a defuse can still finish (team and defuse kit from GSI).
+
+* `overlay.enabled` turns the whole overlay on or off; each widget has its own switch (`overlay.bomb_timer`).
+* Position and size are set in an edit mode: the overlay covers the monitor, the user drags the widget and scales it with a toolbar (Cancel, Smaller, Larger, Save). Saving is one undoable change.
+
 ## Configuration
 
 File-based TOML — human-readable, hand-editable, reloadable at runtime without reinstalling. The config file is the primary customization mechanism; the UI stays minimal.
@@ -114,6 +121,11 @@ duration_ms = 1500
 enabled = true
 volume = 0.60
 
+[overlay]
+enabled = true
+bomb_timer = true
+c4_timer_s = 40.0
+
 [hotkeys.pause]
 enabled = true
 key = "F10"
@@ -123,7 +135,7 @@ key = "F10"
 
 The app has two UI modes:
 
-* **Main mode**: the minimal end-user UI (status, setup steps, settings).
+* **Main mode**: the minimal end-user UI. A status bar, a setup dialog (install or remove the GSI config, opened automatically while it is missing), and one card per settings section. Settings save as soon as they change, with Undo/Redo in the header. The window height follows its content, so the layout must not change height on its own.
 * **Debug mode**: a developer/diagnostics panel, and the primary tool for testing each feature. It grows with every feature: audio sessions and manual volume, live GSI payload/state viewer, event log, duck state and active reductions, config reload, config warnings + reset-to-defaults, pause state.
 
 ## Backlog (post-v1)

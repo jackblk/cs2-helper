@@ -1,11 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
+import { cn } from "cn";
 import { NumberField } from "@/components/settings/NumberField";
-import {
-	SettingRow,
-	SettingsSection,
-	SettingsSubheading,
-} from "@/components/settings/section";
+import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useLoadedSettings } from "@/hooks/use-settings";
@@ -15,6 +12,8 @@ import { toastError } from "@/lib/toast";
 
 // Same width in both states so Edit/Done never shifts the row.
 const EDIT_BUTTON = "w-28";
+// Fits "Disable", so Enable/Disable never resizes the header.
+const ENABLE_BUTTON = "w-18";
 
 export function OverlaySection() {
 	const { settings, commit, overlayEditing } = useLoadedSettings();
@@ -39,20 +38,33 @@ export function OverlaySection() {
 		<SettingsSection
 			title="Overlay"
 			description="Draws over CS2. Needs borderless windowed, not fullscreen."
+			off={!o.enabled}
 			action={
-				<Switch
-					checked={o.enabled}
-					aria-label="Overlay enabled"
-					onCheckedChange={(v) =>
+				<Button
+					variant="ghost"
+					size="sm"
+					className={cn(
+						ENABLE_BUTTON,
+						o.enabled
+							? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+							: "text-emerald-500 hover:bg-emerald-500/10 hover:text-emerald-500",
+					)}
+					onClick={() =>
 						commit(
-							v ? "Overlay on" : "Overlay off",
-							withOverlay((x) => ({ ...x, enabled: v })),
+							o.enabled ? "Overlay off" : "Overlay on",
+							withOverlay((x) => ({ ...x, enabled: !x.enabled })),
 						)
 					}
-				/>
+				>
+					{o.enabled ? "Disable" : "Enable"}
+				</Button>
 			}
 		>
-			<SettingRow label="Position & size" wide>
+			<SettingRow
+				label="Position & size"
+				info="Drag and resize the overlay on your screen."
+				wide
+			>
 				{overlayEditing ? (
 					<>
 						<Button className={EDIT_BUTTON} onClick={finishEdit}>
@@ -71,6 +83,7 @@ export function OverlaySection() {
 						<Button
 							variant="outline"
 							className={EDIT_BUTTON}
+							disabled={!o.enabled}
 							onClick={startEdit}
 						>
 							Edit overlay
@@ -78,6 +91,7 @@ export function OverlaySection() {
 						<Button
 							variant="outline"
 							className={EDIT_BUTTON}
+							disabled={!o.enabled}
 							onClick={() =>
 								commit(
 									"Overlay reset",
@@ -95,13 +109,28 @@ export function OverlaySection() {
 					</>
 				)}
 			</SettingRow>
-			<SettingsSubheading>Bomb timer</SettingsSubheading>
-			<SettingRow label="Fuse length">
+			<SettingRow
+				toggle={
+					<Switch
+						checked={o.bomb_timer}
+						disabled={!o.enabled}
+						aria-label="Bomb timer enabled"
+						onCheckedChange={(v) =>
+							commit(
+								v ? "Bomb timer on" : "Bomb timer off",
+								withOverlay((x) => ({ ...x, bomb_timer: v })),
+							)
+						}
+					/>
+				}
+				label="Bomb timer"
+				info="Shows the time left after the bomb is planted. Set the fuse length to match the game mode."
+			>
 				<NumberField
 					value={o.c4_timer_s}
 					step={1}
 					unit="sec"
-					disabled={!o.enabled}
+					disabled={!o.enabled || !o.bomb_timer}
 					ariaLabel="Bomb fuse seconds"
 					onCommit={(n) =>
 						commit(

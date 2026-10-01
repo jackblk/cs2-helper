@@ -7,8 +7,6 @@ import { SettingsFooter } from "@/components/settings/SettingsFooter";
 import { SetupDialog } from "@/components/settings/SetupDialog";
 import { StatusBar } from "@/components/settings/StatusBar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { useEngine } from "@/hooks/use-engine";
 import { useGsiStatus } from "@/hooks/use-gsi-status";
 import { useSettings } from "@/hooks/use-settings";
@@ -48,17 +46,12 @@ export function MainPage() {
 	return (
 		<div className="space-y-6">
 			<StatusBar snap={snap} gsi={gsi} onOpenSetup={() => setSetupOpen(true)} />
-			<Card>
-				<CardContent className="space-y-6">
-					<AudioSection />
-					<Separator />
-					<OverlaySection />
-					<Separator />
-					<HotkeysSection />
-					<Separator />
-					<AppSection />
-				</CardContent>
-			</Card>
+			<div className="space-y-4">
+				<AudioSection />
+				<OverlaySection />
+				<HotkeysSection />
+				<AppSection />
+			</div>
 			<SettingsFooter cs2Found={gsi.cfg_path != null} />
 			<SetupDialog
 				open={setupOpen}

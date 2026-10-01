@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Circle, CircleCheck, FolderOpen } from "lucide-react";
+import { Circle, CircleCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { isFresh } from "@/hooks/use-gsi-status";
-import { openFolder } from "@/lib/folders";
 import { toastError } from "@/lib/toast";
 import type { GsiStatus } from "@/lib/types";
 
@@ -61,24 +60,19 @@ export function SetupDialog({
 						<div className="flex flex-wrap gap-2">
 							<Button
 								variant={installed ? "outline" : "default"}
+								className="w-24"
 								disabled={!found}
 								onClick={install}
 							>
-								{installed ? "Reinstall" : "Install GSI config"}
+								{installed ? "Reinstall" : "Install"}
 							</Button>
 							<Button
-								variant="outline"
-								disabled={!found}
-								onClick={() => openFolder("open_gsi_cfg_dir")}
+								variant="destructive"
+								disabled={!installed}
+								onClick={remove}
 							>
-								<FolderOpen />
-								Open CS2 config folder
+								Remove
 							</Button>
-							{installed && (
-								<Button variant="destructive" onClick={remove}>
-									Remove
-								</Button>
-							)}
 						</div>
 						{!found && (
 							<p className="text-sm text-muted-foreground">

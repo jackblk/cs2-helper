@@ -14,10 +14,6 @@ import { useFitWindowToContent } from "@/lib/fit-window";
 const DEBUG_UNLOCK_CLICKS = 3;
 const CLICK_RESET_MS = 600;
 
-// The header ends at 60 px (24 px padding + 36 px logo button); toasts start
-// below it so they never cover Undo/Redo.
-const TOASTER_OFFSET = { top: 72, right: 24 };
-
 export function Layout() {
 	const onDebug = useLocation().pathname === "/debug";
 	const navigate = useNavigate();
@@ -95,7 +91,7 @@ export function Layout() {
 						<Outlet />
 					</div>
 					<ConfigWarningsToast />
-					<Toaster richColors position="top-right" offset={TOASTER_OFFSET} />
+					<Toaster richColors position="top-center" />
 				</main>
 			</SettingsProvider>
 		</TooltipProvider>

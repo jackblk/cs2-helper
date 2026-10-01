@@ -2,6 +2,12 @@ import { cn } from "cn";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardAction,
+	CardContent,
+	CardHeader,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
 	Tooltip,
@@ -18,16 +24,21 @@ export function SettingsSection({
 	title,
 	description,
 	action,
+	off = false,
 	children,
 }: {
 	title: string;
 	description?: string;
+	// Section-wide control (e.g. Enable/Disable), right of the title.
 	action?: ReactNode;
+	// Dims the row labels; the rows disable their own controls.
+	off?: boolean;
 	children: ReactNode;
 }) {
 	return (
-		<section className="space-y-4">
-			<div className="flex items-start justify-between gap-4">
+		<Card className="gap-0 py-0">
+			<CardHeader className="gap-x-3 border-b py-4">
+				{action && <CardAction>{action}</CardAction>}
 				<div className="space-y-1">
 					<h3 className="text-sm font-semibold uppercase tracking-wide">
 						{title}
@@ -36,20 +47,12 @@ export function SettingsSection({
 						<p className="text-sm text-muted-foreground">{description}</p>
 					)}
 				</div>
-				{action}
-			</div>
-			<div className="space-y-3">{children}</div>
-		</section>
-	);
-}
-
-export function SettingsSubheading({ children }: { children: ReactNode }) {
-	return (
-		<div className={ROW_GRID}>
-			<h4 className="col-span-4 col-start-2 pt-1 text-sm font-medium text-muted-foreground">
+			</CardHeader>
+			{/* `group` + data-disabled is what dims shadcn's Label. */}
+			<CardContent className="group space-y-3 py-4" data-disabled={off}>
 				{children}
-			</h4>
-		</div>
+			</CardContent>
+		</Card>
 	);
 }
 
