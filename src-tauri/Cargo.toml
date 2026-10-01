@@ -1,6 +1,6 @@
 [package]
 name = "cs2-helper"
-version = "0.1.0"
+version = "0.3.3"
 description = "CS2 Helper — hearing protection and accessibility utility for Counter-Strike 2"
 authors = ["you"]
 edition = "2021"

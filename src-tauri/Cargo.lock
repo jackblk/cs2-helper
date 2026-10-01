@@ -598,7 +598,7 @@ dependencies = [
 
 [[package]]
 name = "cs2-helper"
-version = "0.1.0"
+version = "0.3.3"
 dependencies = [
  "rand 0.8.8",
  "serde",

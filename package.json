@@ -1,7 +1,7 @@
 {
 	"name": "cs2-helper",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.3.3",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -10,6 +10,8 @@
 		"preview": "vite preview",
 		"tauri": "tauri",
 		"test": "vitest run",
+		"bump": "node scripts/version.mjs bump",
+		"version:check": "node scripts/version.mjs check",
 		"site:dev": "pnpm --filter site dev",
 		"site:build": "pnpm --filter site build"
 	},

@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: check tag matches app version
+        run: node scripts/version.mjs check "${{ github.ref_name }}"
+
       - name: install pnpm
         uses: pnpm/action-setup@v6
 
