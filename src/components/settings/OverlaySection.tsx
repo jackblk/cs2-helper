@@ -28,9 +28,12 @@ export function OverlaySection() {
 		}
 	};
 
-	// The overlay window holds the unsaved geometry, so it ends the edit.
-	const endEdit = (action: "ok" | "cancel") =>
-		emit("overlay:edit-request", action);
+	// The overlay window holds the unsaved geometry, so it ends a Done.
+	const finishEdit = () => emit("overlay:edit-request", "ok");
+	// Cancel needs no geometry. Ending it directly means it still works when
+	// the overlay page never answers (`edit_end` is idempotent).
+	const cancelEdit = () =>
+		invoke("overlay_edit_end", { result: null }).catch(() => {});
 
 	return (
 		<SettingsSection
@@ -52,13 +55,13 @@ export function OverlaySection() {
 			<SettingRow label="Position & size" wide>
 				{overlayEditing ? (
 					<>
-						<Button className={EDIT_BUTTON} onClick={() => endEdit("ok")}>
+						<Button className={EDIT_BUTTON} onClick={finishEdit}>
 							Done
 						</Button>
 						<Button
 							variant="outline"
 							className={EDIT_BUTTON}
-							onClick={() => endEdit("cancel")}
+							onClick={cancelEdit}
 						>
 							Cancel
 						</Button>
