@@ -1,0 +1,4 @@
+# Force LF for every text file on every platform (binaries are auto-detected
+# and left alone). The config code also relies on it: default.toml is
+# embedded via include_str! and parsed assuming LF.
+* text=auto eol=lf
