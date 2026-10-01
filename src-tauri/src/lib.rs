@@ -373,6 +373,10 @@ pub fn run() {
             let reload_i = MenuItemBuilder::with_id("reload", "Reload config").build(app)?;
             let openfolder_i =
                 MenuItemBuilder::with_id("openfolder", "Open config folder").build(app)?;
+            // Way out of the full-screen edit surface if its page breaks.
+            let cancel_edit_i = MenuItemBuilder::with_id("cancel_edit", "Cancel overlay edit")
+                .enabled(false)
+                .build(app)?;
             let show_i = MenuItemBuilder::with_id("show", "Show window").build(app)?;
             let exit_i = MenuItemBuilder::with_id("exit", "Exit").build(app)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
@@ -381,8 +385,8 @@ pub fn run() {
             let menu = Menu::with_items(
                 app,
                 &[
-                    &status_i, &sep1, &pause_i, &startup_i, &reload_i, &openfolder_i, &sep2,
-                    &show_i, &exit_i,
+                    &status_i, &sep1, &pause_i, &startup_i, &reload_i, &openfolder_i,
+                    &cancel_edit_i, &sep2, &show_i, &exit_i,
                 ],
             )?;
 
@@ -431,6 +435,10 @@ pub fn run() {
                                 },
                             );
                         });
+                    }
+                    "cancel_edit" => {
+                        let cfg = app.state::<AppSettings>().0.lock().unwrap().overlay;
+                        overlay::edit_end(app, &cfg, None);
                     }
                     "openfolder" => {
                         use tauri_plugin_opener::OpenerExt;
@@ -481,6 +489,7 @@ pub fn run() {
                 };
                 let _ = status_i.set_text(label);
                 let _ = pause_i.set_text(if paused { "Resume" } else { "Pause" });
+                let _ = cancel_edit_i.set_enabled(overlay::edit_session().is_some());
 
                 // Overlay watchdog: fullscreen or resolution changes and GPU
                 // surface loss can destroy, hide, or bury the overlay, and the

@@ -201,6 +201,14 @@ function EditSurface({ session }: { session: OverlayEditSession }) {
 		};
 	}, []);
 
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") endEdit(null);
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, []);
+
 	const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
 		if (e.button !== 0) return;
 		e.currentTarget.setPointerCapture(e.pointerId);
@@ -290,7 +298,7 @@ function EditToolbar({
 				}}
 			>
 				<ToolbarButton
-					label="Cancel"
+					label="Cancel (Esc)"
 					onClick={onCancel}
 					className="text-red-500 hover:bg-red-500/15 hover:text-red-500"
 				>

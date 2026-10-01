@@ -87,6 +87,7 @@ A transparent, click-through, always-on-top window drawn over CS2 (needs borderl
 
 * `overlay.enabled` turns the whole overlay on or off; each widget has its own switch (`overlay.bomb_timer`).
 * Position and size are set in an edit mode: the overlay covers the monitor, the user drags the widget and scales it with a toolbar (Cancel, Smaller, Larger, Save). Saving is one undoable change.
+* The overlay must never lock the user out. Outside edit mode it only takes the widget's own space and lets clicks through; edit mode always has a way out (Esc, the main window, the tray).
 
 ## Configuration
 

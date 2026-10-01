@@ -101,11 +101,20 @@ fn create(app: &tauri::AppHandle, cfg: &OverlayConfig) -> tauri::Result<()> {
         .focusable(false)
         .shadow(false)
         .resizable(false)
-        .visible(true)
+        // Shown only once it is click-through and sized, so a hang or error
+        // part way never leaves a window that blocks the screen.
+        .visible(false)
         .build()?;
-    win.set_ignore_cursor_events(true)?;
-    position(&win, cfg)?;
-    Ok(())
+    let setup = (|| {
+        win.set_ignore_cursor_events(true)?;
+        position(&win, cfg)?;
+        win.show()
+    })();
+    if setup.is_err() {
+        // Otherwise the watchdog would show it without click-through.
+        let _ = win.close();
+    }
+    setup
 }
 
 pub fn reconcile(app: &tauri::AppHandle, cfg: &OverlayConfig) {
@@ -195,13 +204,18 @@ pub fn edit_start(app: &tauri::AppHandle, cfg: &OverlayConfig) -> Result<(), Str
     let cover = (|| -> tauri::Result<()> {
         win.set_position(LogicalPosition::new(monitor.x, monitor.y))?;
         win.set_size(LogicalSize::new(monitor.width, monitor.height))?;
-        win.set_ignore_cursor_events(false)
+        win.set_ignore_cursor_events(false)?;
+        // Focus is what lets the page see Esc.
+        win.set_focusable(true)
     })();
     if let Err(e) = cover {
         *EDIT_SESSION.lock().unwrap() = None;
+        let _ = win.set_focusable(false);
+        let _ = win.set_ignore_cursor_events(true);
         reconcile(app, cfg);
         return Err(e.to_string());
     }
+    let _ = win.set_focus();
     let _ = app.emit("overlay:edit", Some(session));
     Ok(())
 }
@@ -221,6 +235,7 @@ pub fn edit_end(app: &tauri::AppHandle, saved: &OverlayConfig, result: Option<Ed
                 cfg.scale = r.scale;
             }
             let _ = win.set_ignore_cursor_events(true);
+            let _ = win.set_focusable(false);
             let _ = position(&win, &cfg);
         } else {
             let _ = win.close();
