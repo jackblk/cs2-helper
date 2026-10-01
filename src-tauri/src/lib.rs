@@ -214,57 +214,30 @@ fn save_config(
 }
 
 #[tauri::command]
-fn overlay_edit_start(app_handle: tauri::AppHandle) -> Result<(), String> {
-    overlay::edit_start(&app_handle)
-}
-
-/// Returns the updated settings so the UI can re-baseline without a phantom
-/// diff.
-#[tauri::command]
-fn overlay_edit_finish(
+fn overlay_edit_start(
     app_handle: tauri::AppHandle,
-    path: tauri::State<'_, ConfigPath>,
     settings: tauri::State<'_, AppSettings>,
-) -> Result<config::AppConfig, String> {
-    let (x, y) = overlay::edit_finish(&app_handle)?;
-    let mut app_cfg = settings.0.lock().unwrap().clone();
-    app_cfg.overlay.pos_x = Some(x);
-    app_cfg.overlay.pos_y = Some(y);
-    let cfg = engine_config(&app_handle);
-    config::write(&path.0, &cfg, &app_cfg)?;
-    *settings.0.lock().unwrap() = app_cfg.clone();
-    Ok(app_cfg)
+) -> Result<(), String> {
+    let cfg = settings.0.lock().unwrap().overlay;
+    overlay::edit_start(&app_handle, &cfg)
 }
 
-/// Returns the updated settings so the UI can re-baseline.
+/// Lets an overlay page created for the edit pick up the session it missed.
 #[tauri::command]
-fn overlay_reset_position(
-    app_handle: tauri::AppHandle,
-    path: tauri::State<'_, ConfigPath>,
-    settings: tauri::State<'_, AppSettings>,
-) -> Result<config::AppConfig, String> {
-    let mut app_cfg = settings.0.lock().unwrap().clone();
-    app_cfg.overlay.pos_x = None;
-    app_cfg.overlay.pos_y = None;
-    let cfg = engine_config(&app_handle);
-    config::write(&path.0, &cfg, &app_cfg)?;
-    *settings.0.lock().unwrap() = app_cfg.clone();
-    overlay::reconcile(&app_handle, &app_cfg.overlay);
-    Ok(app_cfg)
+fn overlay_edit_session() -> Option<overlay::EditSession> {
+    overlay::edit_session()
 }
 
+/// `result: None` cancels. Writes nothing: the main window saves the result
+/// with `save_config`, so it lands in its undo history.
 #[tauri::command]
-fn overlay_preview_scale(
-    scale: Option<f32>,
+fn overlay_edit_end(
+    result: Option<overlay::EditResult>,
     app_handle: tauri::AppHandle,
     settings: tauri::State<'_, AppSettings>,
 ) {
-    let saved = settings.0.lock().unwrap().overlay;
-    overlay::preview_scale(&app_handle, &saved, scale);
-}
-
-fn engine_config(app: &tauri::AppHandle) -> config::Config {
-    app.state::<Engine>().0.snapshot().config.unwrap_or_default()
+    let cfg = settings.0.lock().unwrap().overlay;
+    overlay::edit_end(&app_handle, &cfg, result);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -534,9 +507,8 @@ pub fn run() {
             get_app_settings,
             save_config,
             overlay_edit_start,
-            overlay_edit_finish,
-            overlay_reset_position,
-            overlay_preview_scale,
+            overlay_edit_session,
+            overlay_edit_end,
             hotkey_capture_start,
             hotkey_capture_end
         ])

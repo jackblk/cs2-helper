@@ -1,6 +1,10 @@
 //! Transparent, click-through, always-on-top window for the bomb defuse timer.
-//! Exists only while `OverlayConfig::enabled`. Geometry is in logical pixels.
+//! Exists while `OverlayConfig::enabled`, or for the length of an edit.
+//! Geometry is in logical pixels.
 
+use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
 use tauri::{
     Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
@@ -21,23 +25,62 @@ fn logical_size(scale: f32) -> (f64, f64) {
 /// Logical px between the screen edge and the default bottom-center position.
 const EDGE_MARGIN: f64 = 24.0;
 
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct Rect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// `x`/`y`/`scale` are the overlay's geometry when the edit began.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct EditSession {
+    pub monitor: Rect,
+    pub x: f64,
+    pub y: f64,
+    pub scale: f32,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct EditResult {
+    pub x: f64,
+    pub y: f64,
+    pub scale: f32,
+}
+
+/// While set, the window covers its monitor, so `reconcile` must neither
+/// shrink nor close it. Kept here, not only sent as an event, because an
+/// overlay page created for the edit loads after the event fired.
+static EDIT_SESSION: Mutex<Option<EditSession>> = Mutex::new(None);
+
+pub fn edit_session() -> Option<EditSession> {
+    *EDIT_SESSION.lock().unwrap()
+}
+
+/// Saved or default top-left.
+fn origin(win: &WebviewWindow, cfg: &OverlayConfig) -> tauri::Result<(f64, f64)> {
+    if let (Some(x), Some(y)) = (cfg.pos_x, cfg.pos_y) {
+        return Ok((x, y));
+    }
+    let (w, h) = logical_size(cfg.scale);
+    Ok(match win.primary_monitor()? {
+        Some(mon) => {
+            let sf = mon.scale_factor();
+            let mon_w = mon.size().width as f64 / sf;
+            let mon_h = mon.size().height as f64 / sf;
+            (
+                ((mon_w - w) / 2.0).max(0.0),
+                (mon_h - h - EDGE_MARGIN).max(0.0),
+            )
+        }
+        None => (100.0, 100.0),
+    })
+}
+
 fn position(win: &WebviewWindow, cfg: &OverlayConfig) -> tauri::Result<()> {
     let (w, h) = logical_size(cfg.scale);
-    let (x, y) = match (cfg.pos_x, cfg.pos_y) {
-        (Some(x), Some(y)) => (x, y),
-        _ => match win.primary_monitor()? {
-            Some(mon) => {
-                let sf = mon.scale_factor();
-                let mon_w = mon.size().width as f64 / sf;
-                let mon_h = mon.size().height as f64 / sf;
-                (
-                    ((mon_w - w) / 2.0).max(0.0),
-                    (mon_h - h - EDGE_MARGIN).max(0.0),
-                )
-            }
-            None => (100.0, 100.0),
-        },
-    };
+    let (x, y) = origin(win, cfg)?;
     win.set_size(LogicalSize::new(w, h))?;
     win.set_position(LogicalPosition::new(x, y))?;
     Ok(())
@@ -66,6 +109,11 @@ fn create(app: &tauri::AppHandle, cfg: &OverlayConfig) -> tauri::Result<()> {
 }
 
 pub fn reconcile(app: &tauri::AppHandle, cfg: &OverlayConfig) {
+    if edit_session().is_some() {
+        // `edit_end` applies the final geometry and visibility.
+        let _ = app.emit("overlay:config", cfg);
+        return;
+    }
     match (cfg.enabled, app.get_webview_window(OVERLAY_LABEL)) {
         (true, None) => {
             let _ = create(app, cfg);
@@ -86,7 +134,7 @@ pub fn reconcile(app: &tauri::AppHandle, cfg: &OverlayConfig) {
 /// Watchdog repair, run about once a second on the main thread. The OS can hide
 /// the overlay or drop it behind a fullscreen game without destroying it, which
 /// `reconcile` never notices. Deliberately does not reposition: that would
-/// fight a drag in edit mode.
+/// fight an edit in progress.
 pub fn ensure_alive(app: &tauri::AppHandle, cfg: &OverlayConfig) {
     if !cfg.enabled {
         return;
@@ -106,38 +154,78 @@ pub fn ensure_alive(app: &tauri::AppHandle, cfg: &OverlayConfig) {
     }
 }
 
-/// Unsaved size preview: `Some(scale)` resizes and shows a sample reading,
-/// `None` restores the saved size and hides the sample.
-pub fn preview_scale(app: &tauri::AppHandle, saved: &OverlayConfig, scale: Option<f32>) {
-    let Some(win) = app.get_webview_window(OVERLAY_LABEL) else {
-        return;
+fn monitor_rect(win: &WebviewWindow) -> Result<Rect, String> {
+    let mon = match win.current_monitor().map_err(|e| e.to_string())? {
+        Some(m) => m,
+        None => win
+            .primary_monitor()
+            .map_err(|e| e.to_string())?
+            .ok_or("no monitor found")?,
     };
-    let mut cfg = *saved;
-    if let Some(s) = scale {
-        cfg.scale = s;
-    }
-    let _ = position(&win, &cfg);
-    let _ = app.emit("overlay:config", cfg);
-    let _ = app.emit("overlay:sample", scale.is_some());
+    let sf = mon.scale_factor();
+    Ok(Rect {
+        x: mon.position().x as f64 / sf,
+        y: mon.position().y as f64 / sf,
+        width: mon.size().width as f64 / sf,
+        height: mon.size().height as f64 / sf,
+    })
 }
 
-pub fn edit_start(app: &tauri::AppHandle) -> Result<(), String> {
+/// Covers the overlay's monitor so the page can drag and resize the badge
+/// in JS. Creates the window when the overlay is disabled.
+pub fn edit_start(app: &tauri::AppHandle, cfg: &OverlayConfig) -> Result<(), String> {
+    if edit_session().is_some() {
+        return Ok(());
+    }
+    if app.get_webview_window(OVERLAY_LABEL).is_none() {
+        create(app, cfg).map_err(|e| e.to_string())?;
+    }
     let win = app
         .get_webview_window(OVERLAY_LABEL)
         .ok_or("overlay window is not open")?;
-    win.set_ignore_cursor_events(false).map_err(|e| e.to_string())?;
-    let _ = app.emit("overlay:edit", true);
+    let (x, y) = origin(&win, cfg).map_err(|e| e.to_string())?;
+    let monitor = monitor_rect(&win)?;
+    let session = EditSession {
+        monitor,
+        x,
+        y,
+        scale: cfg.scale,
+    };
+    *EDIT_SESSION.lock().unwrap() = Some(session);
+    let cover = (|| -> tauri::Result<()> {
+        win.set_position(LogicalPosition::new(monitor.x, monitor.y))?;
+        win.set_size(LogicalSize::new(monitor.width, monitor.height))?;
+        win.set_ignore_cursor_events(false)
+    })();
+    if let Err(e) = cover {
+        *EDIT_SESSION.lock().unwrap() = None;
+        reconcile(app, cfg);
+        return Err(e.to_string());
+    }
+    let _ = app.emit("overlay:edit", Some(session));
     Ok(())
 }
 
-/// Returns the dragged position in logical px.
-pub fn edit_finish(app: &tauri::AppHandle) -> Result<(f64, f64), String> {
-    let win = app
-        .get_webview_window(OVERLAY_LABEL)
-        .ok_or("overlay window is not open")?;
-    let pos = win.outer_position().map_err(|e| e.to_string())?;
-    let sf = win.scale_factor().map_err(|e| e.to_string())?;
-    win.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
-    let _ = app.emit("overlay:edit", false);
-    Ok((pos.x as f64 / sf, pos.y as f64 / sf))
+/// `None` cancels. Window calls are best effort so both windows always leave
+/// edit mode; a second call (Done pressed in both windows) is a no-op.
+pub fn edit_end(app: &tauri::AppHandle, saved: &OverlayConfig, result: Option<EditResult>) {
+    if EDIT_SESSION.lock().unwrap().take().is_none() {
+        return;
+    }
+    if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
+        if saved.enabled {
+            let mut cfg = *saved;
+            if let Some(r) = result {
+                cfg.pos_x = Some(r.x);
+                cfg.pos_y = Some(r.y);
+                cfg.scale = r.scale;
+            }
+            let _ = win.set_ignore_cursor_events(true);
+            let _ = position(&win, &cfg);
+        } else {
+            let _ = win.close();
+        }
+    }
+    let _ = app.emit("overlay:edit", None::<EditSession>);
+    let _ = app.emit("overlay:edit-result", result);
 }

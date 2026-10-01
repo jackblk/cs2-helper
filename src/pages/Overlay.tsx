@@ -1,13 +1,38 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useRef, useState } from "react";
-import { C4_FUSE_DEFAULT, defuseColor } from "@/lib/defuse";
+import { Check, Minus, Plus, X } from "lucide-react";
+import {
+	type CSSProperties,
+	type PointerEvent,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
+import { Button } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { C4_FUSE_DEFAULT, type DefuseColor, defuseColor } from "@/lib/defuse";
+import {
+	clampToMonitor,
+	overlaySize,
+	placeToolbar,
+	SCALE_MAX,
+	SCALE_MIN,
+	stepScale,
+	TOOLBAR_SIZE,
+} from "@/lib/overlay-edit";
 import type {
 	AppConfig,
 	GameState,
 	GsiUpdate,
 	OverlayConfig,
+	OverlayEditResult,
+	OverlayEditSession,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -23,16 +48,17 @@ const DEFAULT_OVERLAY: OverlayConfig = {
 // Show the badge for a short grace period after detonation so 0.0 is visible.
 const GRACE_MS = 1500;
 
-// Reading shown while the settings Size slider previews a new size, so the
-// user sees a realistic badge instead of the dim placeholder.
+// Reading shown in edit mode, so the user positions a realistic badge.
 const SAMPLE_S = 32.5;
+
+const endEdit = (result: OverlayEditResult | null) =>
+	invoke("overlay_edit_end", { result }).catch(() => {});
 
 export function Overlay() {
 	const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_OVERLAY);
-	const [editing, setEditing] = useState(false);
+	const [session, setSession] = useState<OverlayEditSession | null>(null);
 	// Debug page toggle: show the idle placeholder even without a plant.
 	const [preview, setPreview] = useState(false);
-	const [sizePreview, setSizePreview] = useState(false);
 	const [state, setState] = useState<GameState | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
 
@@ -45,27 +71,21 @@ export function Overlay() {
 			(a) => setCfg(a.overlay),
 			() => {},
 		);
-		const unCfg = listen<OverlayConfig>("overlay:config", (e) =>
-			setCfg(e.payload),
+		// A window created for the edit loads after `overlay:edit` fired.
+		invoke<OverlayEditSession | null>("overlay_edit_session").then(
+			setSession,
+			() => {},
 		);
-		const unEdit = listen<boolean>("overlay:edit", (e) =>
-			setEditing(e.payload),
-		);
-		const unPreview = listen<boolean>("overlay:preview", (e) =>
-			setPreview(e.payload),
-		);
-		const unSample = listen<boolean>("overlay:sample", (e) =>
-			setSizePreview(e.payload),
-		);
-		const unGsi = listen<GsiUpdate>("gsi:update", (e) =>
-			setState(e.payload.state),
-		);
+		const unlisteners = [
+			listen<OverlayConfig>("overlay:config", (e) => setCfg(e.payload)),
+			listen<OverlayEditSession | null>("overlay:edit", (e) =>
+				setSession(e.payload),
+			),
+			listen<boolean>("overlay:preview", (e) => setPreview(e.payload)),
+			listen<GsiUpdate>("gsi:update", (e) => setState(e.payload.state)),
+		];
 		return () => {
-			unCfg.then((f) => f());
-			unEdit.then((f) => f());
-			unPreview.then((f) => f());
-			unSample.then((f) => f());
-			unGsi.then((f) => f());
+			for (const un of unlisteners) un.then((f) => f());
 		};
 	}, []);
 
@@ -101,65 +121,214 @@ export function Overlay() {
 		return () => cancelAnimationFrame(raf);
 	}, [cfg.c4_timer_s, cfg.safety_margin_s]);
 
-	// Edit mode: a left press anywhere in the window drags it. Started from JS
-	// rather than `data-tauri-drag-region`, which only fires when the pressed
-	// element itself carries the attribute, so pressing the badge (a child)
-	// would not drag.
-	useEffect(() => {
-		if (!editing) return;
-		const onMouseDown = (e: MouseEvent) => {
-			if (e.button === 0) getCurrentWindow().startDragging();
-		};
-		window.addEventListener("mousedown", onMouseDown);
-		return () => window.removeEventListener("mousedown", onMouseDown);
-	}, [editing]);
-
-	const show = editing || preview || sizePreview || remaining != null;
-	if (!show) return null;
-
-	const shown = remaining ?? (sizePreview && !editing ? SAMPLE_S : null);
-	const idle = !editing && shown == null;
+	if (session) return <EditSurface session={session} />;
+	if (!preview && remaining == null) return null;
 
 	const color =
 		remaining == null
-			? "green"
+			? null
 			: defuseColor(state?.team ?? null, state?.defusekit ?? false, remaining);
 
 	return (
+		<div className="flex h-screen w-screen select-none items-center justify-center">
+			<TimerBadge
+				scale={cfg.scale}
+				color={color}
+				value={remaining == null ? "--.-" : remaining.toFixed(1)}
+				caption={
+					color == null ? "bomb timer" : color === "red" ? "run" : "defuse"
+				}
+			/>
+		</div>
+	);
+}
+
+function TimerBadge({
+	scale,
+	color,
+	value,
+	caption,
+}: {
+	scale: number;
+	color: DefuseColor | null;
+	value: string;
+	caption: string;
+}) {
+	return (
 		<div
+			// The window (or edit box) is sized by `scale`; scale the badge too
+			// so its text grows with it.
+			style={{ transform: `scale(${scale})` }}
 			className={cn(
-				"flex h-screen w-screen select-none flex-col items-center justify-center font-mono",
-				editing &&
-					"cursor-move rounded-lg border-2 border-dashed border-white/70",
+				"rounded-lg bg-black/70 px-4 py-2 text-center font-mono tabular-nums tracking-tight shadow-lg backdrop-blur-sm",
+				color == null
+					? "text-white/40"
+					: color === "green"
+						? "text-emerald-400"
+						: "text-red-500",
 			)}
 		>
-			<div
-				// The window is resized by `scale` on the Rust side; scale the badge
-				// too so its text grows with the window.
-				style={{ transform: `scale(${cfg.scale})` }}
-				className={cn(
-					"rounded-lg px-4 py-2 text-center tabular-nums tracking-tight shadow-lg",
-					"bg-black/70 backdrop-blur-sm",
-					idle
-						? "text-white/40"
-						: color === "green"
-							? "text-emerald-400"
-							: "text-red-500",
-				)}
-			>
-				<div className="text-4xl font-bold leading-none">
-					{shown == null ? "--.-" : shown.toFixed(1)}
-				</div>
-				<div className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
-					{editing
-						? "drag to move"
-						: shown == null
-							? "bomb timer"
-							: color === "red"
-								? "run"
-								: "defuse"}
-				</div>
+			<div className="text-4xl font-bold leading-none">{value}</div>
+			<div className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
+				{caption}
 			</div>
 		</div>
+	);
+}
+
+// The window covers its monitor during an edit; client coordinates are
+// logical px relative to the monitor's origin.
+function EditSurface({ session }: { session: OverlayEditSession }) {
+	const { monitor } = session;
+	const [scale, setScale] = useState(session.scale);
+	const [origin, setOrigin] = useState({ x: session.x, y: session.y });
+	const box = clampToMonitor({ ...origin, ...overlaySize(scale) }, monitor);
+	const bar = placeToolbar(box, monitor);
+	const grab = useRef<{ dx: number; dy: number } | null>(null);
+
+	// The main window's Done/Cancel end the edit with this window's unsaved
+	// geometry.
+	const latest = useRef({ box, scale });
+	latest.current = { box, scale };
+	useEffect(() => {
+		const un = listen<"ok" | "cancel">("overlay:edit-request", (e) => {
+			const { box, scale } = latest.current;
+			endEdit(e.payload === "ok" ? { x: box.x, y: box.y, scale } : null);
+		});
+		return () => {
+			un.then((f) => f());
+		};
+	}, []);
+
+	const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+		if (e.button !== 0) return;
+		e.currentTarget.setPointerCapture(e.pointerId);
+		grab.current = {
+			dx: monitor.x + e.clientX - box.x,
+			dy: monitor.y + e.clientY - box.y,
+		};
+	};
+	const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+		const g = grab.current;
+		if (!g) return;
+		const next = clampToMonitor(
+			{
+				x: monitor.x + e.clientX - g.dx,
+				y: monitor.y + e.clientY - g.dy,
+				...overlaySize(scale),
+			},
+			monitor,
+		);
+		setOrigin({ x: next.x, y: next.y });
+	};
+	const onPointerUp = () => {
+		grab.current = null;
+	};
+
+	return (
+		<div className="relative h-screen w-screen select-none bg-black/20">
+			<div
+				onPointerDown={onPointerDown}
+				onPointerMove={onPointerMove}
+				onPointerUp={onPointerUp}
+				onPointerCancel={onPointerUp}
+				className="absolute flex cursor-move items-center justify-center rounded-lg border-2 border-dashed border-white/70"
+				style={{
+					left: box.x - monitor.x,
+					top: box.y - monitor.y,
+					width: box.width,
+					height: box.height,
+				}}
+			>
+				<TimerBadge
+					scale={scale}
+					color="green"
+					value={SAMPLE_S.toFixed(1)}
+					caption={`drag to move · ${scale.toFixed(2)}x`}
+				/>
+			</div>
+			<EditToolbar
+				style={{ left: bar.x - monitor.x, top: bar.y - monitor.y }}
+				onCancel={() => endEdit(null)}
+				onSmaller={
+					scale > SCALE_MIN
+						? () => setScale((s) => stepScale(s, -1))
+						: undefined
+				}
+				onLarger={
+					scale < SCALE_MAX ? () => setScale((s) => stepScale(s, 1)) : undefined
+				}
+				onSave={() => endEdit({ x: box.x, y: box.y, scale })}
+			/>
+		</div>
+	);
+}
+
+function EditToolbar({
+	style,
+	onCancel,
+	onSmaller,
+	onLarger,
+	onSave,
+}: {
+	style: CSSProperties;
+	onCancel: () => void;
+	onSmaller?: () => void;
+	onLarger?: () => void;
+	onSave: () => void;
+}) {
+	return (
+		// The overlay renders outside Layout, so it needs its own provider.
+		<TooltipProvider>
+			<div
+				className="absolute flex items-center gap-1 rounded-lg bg-black/80 p-1 shadow-lg"
+				style={{
+					...style,
+					width: TOOLBAR_SIZE.width,
+					height: TOOLBAR_SIZE.height,
+				}}
+			>
+				<ToolbarButton label="Cancel" onClick={onCancel}>
+					<X />
+				</ToolbarButton>
+				<ToolbarButton label="Smaller" onClick={onSmaller}>
+					<Minus />
+				</ToolbarButton>
+				<ToolbarButton label="Larger" onClick={onLarger}>
+					<Plus />
+				</ToolbarButton>
+				<ToolbarButton label="Save" onClick={onSave}>
+					<Check />
+				</ToolbarButton>
+			</div>
+		</TooltipProvider>
+	);
+}
+
+function ToolbarButton({
+	label,
+	onClick,
+	children,
+}: {
+	label: string;
+	onClick?: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label={label}
+					disabled={!onClick}
+					onClick={onClick}
+					className="text-white hover:bg-white/15 hover:text-white"
+				>
+					{children}
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 }

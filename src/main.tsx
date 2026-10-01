@@ -9,6 +9,8 @@ import { Overlay } from "@/pages/Overlay";
 import "./App.css";
 
 const isOverlay = getCurrentWindow().label === "overlay";
+// Portals (tooltips, dialogs) mount under <body>, outside Layout's `dark`.
+document.documentElement.classList.add("dark");
 if (isOverlay) {
 	document.documentElement.classList.add("overlay-mode");
 }
