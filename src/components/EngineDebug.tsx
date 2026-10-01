@@ -76,7 +76,7 @@ export function EngineDebug() {
 				<CardTitle className="flex items-center gap-2">
 					Event Engine
 					{snap?.paused ? (
-						<Badge variant="outline">paused — 100%</Badge>
+						<Badge variant="outline">paused, 100%</Badge>
 					) : snap?.target != null ? (
 						<Badge variant="destructive">reduced → {pct(snap.target)}</Badge>
 					) : (

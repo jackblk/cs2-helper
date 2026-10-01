@@ -196,7 +196,7 @@ export function DebugPage() {
 									colSpan={5}
 									className="text-center text-muted-foreground"
 								>
-									No sessions — click "Refresh sessions".
+									No sessions. Click "Refresh sessions".
 								</TableCell>
 							</TableRow>
 						) : (

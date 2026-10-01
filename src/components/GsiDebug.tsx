@@ -43,7 +43,7 @@ export function GsiDebug() {
 		setMessage("");
 		try {
 			const path = await invoke<string>("install_gsi_cfg");
-			setMessage(`Installed: ${path} — restart CS2 to apply.`);
+			setMessage(`Installed: ${path}. Restart CS2 to apply.`);
 		} catch (e) {
 			setMessage(`error: ${e}`);
 		}
@@ -69,7 +69,7 @@ export function GsiDebug() {
 				</CardTitle>
 				<CardDescription>
 					Live game state from CS2. Install the cfg, restart CS2, then join a
-					match — payloads appear below.
+					match. Payloads appear below.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
