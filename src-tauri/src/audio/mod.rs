@@ -139,7 +139,7 @@ pub fn list_sessions() -> windows::core::Result<Vec<AudioSessionInfo>> {
 /// Sets every session whose process name matches (case-insensitive). Returns
 /// the number of sessions changed.
 pub fn set_volume_for_process(process: &str, volume: f32) -> windows::core::Result<usize> {
-    let target = process.to_ascii_lowercase();
+    let target = process.to_owned();
     let level = volume.clamp(0.0, 1.0);
     with_com(move || unsafe {
         let mut changed = 0usize;
@@ -159,7 +159,7 @@ pub fn set_volume_for_process(process: &str, volume: f32) -> windows::core::Resu
 
 /// First matching session (case-insensitive); `None` if there is none.
 pub fn get_volume_for_process(process: &str) -> windows::core::Result<Option<f32>> {
-    let target = process.to_ascii_lowercase();
+    let target = process.to_owned();
     with_com(move || unsafe {
         let mut found = None;
         for_each_session(|pid, _control2, simple| {

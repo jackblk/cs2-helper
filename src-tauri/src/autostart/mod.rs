@@ -55,8 +55,9 @@ pub fn set_enabled(enabled: bool) -> Result<(), String> {
 
 fn create_shortcut(link_path: &Path, target: &Path) -> Result<(), String> {
     unsafe {
-        // Result ignored: this is a fresh thread, so COM is not yet initialized.
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+            .ok()
+            .map_err(|e| format!("CoInitializeEx: {e}"))?;
         let result = (|| -> windows::core::Result<()> {
             let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
             let target_w = wide(target.as_os_str());
