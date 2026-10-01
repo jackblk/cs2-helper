@@ -413,19 +413,24 @@ pub fn run() {
                         );
                     }
                     "reload" => {
-                        let payload = load_and_apply_config(
-                            app,
-                            &app.state::<Engine>(),
-                            &app.state::<ConfigPath>(),
-                            &app.state::<AppSettings>(),
-                        );
-                        let _ = app.emit(
-                            SETTINGS_CHANGED,
-                            SettingsChanged {
-                                config: payload.config,
-                                app: payload.app,
-                            },
-                        );
+                        // Off the main thread: it can create the overlay
+                        // window, which deadlocks inside a menu handler.
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            let payload = load_and_apply_config(
+                                &app,
+                                &app.state::<Engine>(),
+                                &app.state::<ConfigPath>(),
+                                &app.state::<AppSettings>(),
+                            );
+                            let _ = app.emit(
+                                SETTINGS_CHANGED,
+                                SettingsChanged {
+                                    config: payload.config,
+                                    app: payload.app,
+                                },
+                            );
+                        });
                     }
                     "openfolder" => {
                         use tauri_plugin_opener::OpenerExt;
@@ -479,15 +484,10 @@ pub fn run() {
 
                 // Overlay watchdog: fullscreen or resolution changes and GPU
                 // surface loss can destroy, hide, or bury the overlay, and the
-                // OS never restores it.
-                let want_overlay = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
-                if want_overlay.enabled {
-                    let app_for_main = tick_app.clone();
-                    let _ = tick_app.run_on_main_thread(move || {
-                        let cfg = app_for_main.state::<AppSettings>().0.lock().unwrap().overlay;
-                        overlay::ensure_alive(&app_for_main, &cfg);
-                    });
-                }
+                // OS never restores it. Runs on this thread, not the main
+                // one: recreating the window there deadlocks.
+                let cfg = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
+                overlay::ensure_alive(&tick_app, &cfg);
             });
 
             Ok(())

@@ -131,7 +131,7 @@ pub fn reconcile(app: &tauri::AppHandle, cfg: &OverlayConfig) {
     let _ = app.emit("overlay:config", cfg);
 }
 
-/// Watchdog repair, run about once a second on the main thread. The OS can hide
+/// Watchdog repair, run about once a second off the main thread. The OS can hide
 /// the overlay or drop it behind a fullscreen game without destroying it, which
 /// `reconcile` never notices. Deliberately does not reposition: that would
 /// fight an edit in progress.

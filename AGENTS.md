@@ -59,7 +59,7 @@ CS2 ──GSI HTTP POST──> GSI server ──> Event engine ──> Audio eng
 
 Rust modules under `src-tauri/src/`: `audio/`, `gsi/`, `events/`, `config/`, `autostart/`, `hotkey.rs`, `overlay.rs`. Tray, window lifecycle and the Tauri commands live in `lib.rs`.
 
-**Window-creation gotcha:** on Windows, building a webview window inside a synchronous Tauri command deadlocks the app (wry#583; documented on `WebviewWindowBuilder::new`). Any command that can create a window (today `save_config`, `reload_config`, `reset_config`, `overlay_edit_start`, all via `overlay::reconcile`/`create`) must be `async`. An `async` command that takes `State<'_>` must return `Result`.
+**Window-creation gotcha:** on Windows, building a webview window on the main thread while the event loop is running deadlocks the app and can leave a frozen always-on-top overlay over the desktop (wry#583; documented on `WebviewWindowBuilder::new`). That covers synchronous Tauri commands, tray/menu handlers and `run_on_main_thread` closures. Any command that can create a window (today `save_config`, `reload_config`, `reset_config`, `overlay_edit_start`, all via `overlay::reconcile`/`create`) must be `async`; the tray "Reload config" handler and the overlay watchdog do their work on a background thread. An `async` command that takes `State<'_>` must return `Result`.
 
 **Status:**
 
