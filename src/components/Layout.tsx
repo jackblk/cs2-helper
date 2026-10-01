@@ -5,10 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useFitWindowToContent } from "@/lib/fit-window";
 
 export function Layout() {
 	const onDebug = useLocation().pathname === "/debug";
 	const navigate = useNavigate();
+	const mainRef = useRef<HTMLElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
+	useFitWindowToContent(mainRef, contentRef);
 	const [version, setVersion] = useState("");
 	useEffect(() => {
 		getVersion().then(setVersion);
@@ -33,8 +37,11 @@ export function Layout() {
 
 	return (
 		<TooltipProvider>
-			<main className="dark min-h-screen bg-background p-6 text-foreground">
-				<div className="mx-auto max-w-3xl space-y-6">
+			<main
+				ref={mainRef}
+				className="dark min-h-screen bg-background p-6 text-foreground"
+			>
+				<div ref={contentRef} className="mx-auto max-w-3xl space-y-6">
 					<header className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<Button
