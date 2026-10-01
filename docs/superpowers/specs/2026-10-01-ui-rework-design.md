@@ -82,7 +82,7 @@ No setup  ○ Waiting for CS2   Audio 100%   flash death bomb spec   [! Set up] 
 
 ### Overlay section
 
-* The header switch is `overlay.enabled`. When off, rows dim and are disabled; no hint text.
+* The header switch is `overlay.enabled`. When off, widget rows dim and are disabled; no hint text. "Position & size" stays enabled, since editing works with the overlay off.
 * "Position & size": `[Edit overlay] [Reset]`. While editing, the row shows `[Done] [Cancel]` at the same widths. Edit overlay works even when the overlay is disabled (see "Overlay edit mode").
 * Reset restores the default position and the default scale from `default.toml` (currently 1.00), as one undoable step.
 * Widget sub-sections ("Bomb timer": Fuse length) sit below. Future widgets add their own sub-heading and rows; all widgets live in the one overlay and move/scale together.
@@ -115,7 +115,7 @@ Saves run strictly in order through a queue. The provider keeps `current` (optim
 ### Toasts
 
 * Toaster moves below the header via sonner's `offset`, so toasts never cover the Undo/Redo buttons.
-* Success: one toast with a fixed id, updated in place: "Saved: Flash volume 15%", "Undone: Flash volume", "Redone: Flash volume". Default duration.
+* Success: one toast with a fixed id, updated in place: "Saved: Flash volume", "Undone: Flash volume", "Redone: Flash volume". Default duration.
 * Errors: 8 s.
 
 ## Setup dialog
@@ -172,7 +172,9 @@ New shadcn `dialog` component.
 * The overlay page renders a light dim, the overlay at its position, and the toolbar, all positioned in JS. Drag uses pointer events, not `startDragging()`. Scale changes re-layout inside the surface; the OS window is not resized.
 * Dragging to another monitor during edit is not supported (accepted trade-off).
 * On OK or Cancel, the overlay invokes the end command; Rust restores the window to badge size at the resulting (or original) geometry, re-enables click-through, closes the window if the overlay is disabled, and emits `overlay:edit-result` with `{ x, y, scale }` or a cancel marker. The main window commits the result through `commit`, so the save path and history are the same as every other setting.
-* Toolbar placement is a pure function (`src/lib/overlay-toolbar.ts`) so it can be unit tested.
+* Toolbar placement, monitor clamping and scale stepping are pure functions (`src/lib/overlay-edit.ts`) so they can be unit tested.
+* Rust keeps the active edit session in state: while it is set, `reconcile` neither resizes nor closes the window, and an overlay page created for the edit fetches it with `overlay_edit_session` (it can miss the `overlay:edit` event while loading).
+* The main page's Done/Cancel emit `overlay:edit-request`; the overlay window answers by ending the edit with its own unsaved geometry.
 
 ## Loading
 
@@ -190,7 +192,7 @@ The main page renders nothing below the header until `engine_status`, `gsi_statu
 * `uninstall_gsi_cfg`: deletes `gamestate_integration_cs2helper.cfg` in the CS2 cfg dir; no-op when absent; error when the CS2 dir is not found. Lives next to `install_cfg` in `gsi/install.rs`, registered in `lib.rs`.
 * Overlay edit commands: `overlay_edit_start` as described; `overlay_edit_finish` and `overlay_preview_scale` are replaced by `overlay_edit_end(result: Option<{ x, y, scale }>)` which only restores the window and emits `overlay:edit-result`; it no longer writes config (the main window saves via `save_config`). `overlay::preview_scale` and the `overlay:sample` event are removed.
 * `overlay_reset_position` is removed; Reset becomes a normal commit setting `pos_x`/`pos_y` to null and `scale` to the default scale.
-* External-change signal: Rust emits `settings:changed` with `{ config, app }` from the tray "Reload config" and tray "Run on startup" handlers and from `reload_config`. Today the UI only notices engine-config changes, so `[app]` changes from the tray go unnoticed. The tray "Reload config" handler switches to `load_and_apply_config`, which also reconciles the overlay (it currently does not).
+* External-change signal: Rust emits `settings:changed` with `{ config, app }` from the tray "Reload config" and tray "Run on startup" handlers. The Debug page's Reload/Reset buttons already get the new settings back from `reload_config`/`reset_config` and hand them to the settings provider directly; Rust does not emit from those commands, because the main page's own undoable Reset to defaults also calls `reset_config` and must not clear history. Today the UI only notices engine-config changes, so `[app]` changes from the tray go unnoticed. The tray "Reload config" handler switches to `load_and_apply_config`, which also reconciles the overlay (it currently does not).
 
 ## Frontend structure
 
@@ -219,7 +221,7 @@ src/
     use-gsi-status.ts       gsi_status polling
   lib/
     history.ts              pure undo/redo stack
-    overlay-toolbar.ts      pure toolbar placement
+    overlay-edit.ts         pure toolbar placement, monitor clamp, scale step
   pages/
     MainPage.tsx            initial-load gate + section composition
     Overlay.tsx             edit surface + toolbar
@@ -238,7 +240,7 @@ src/
 
 ## Testing
 
-* Vitest: `history.ts` (push, undo, redo, cap, redo cleared on new commit); `overlay-toolbar.ts` (above/below flip, horizontal clamp at both edges, 0.5x); warning-set key.
+* Vitest: `history.ts` (push, undo, redo, cap, redo cleared on new commit); `overlay-edit.ts` (above/below flip, horizontal clamp at both edges, 0.5x); warning-set key.
 * Rust: `uninstall_gsi_cfg` removes the file and is a no-op when absent.
 * `pnpm tsc --noEmit`, `pnpm test`, `cargo test`, `cargo check`.
 * Manual (developer, in the app): no window resize from status changes, hotkey recording, warnings, or overlay editing; status bar on one line at 720 px width; overlay edit OK and Cancel at each screen edge; undo/redo across each control type, overlay edit and Reset to defaults; tray reload clears history and refreshes the form.
