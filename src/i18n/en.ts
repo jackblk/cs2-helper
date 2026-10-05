@@ -139,6 +139,12 @@ export const en = {
 		openCs2Folder: "Open CS2 config folder",
 		openAppFolder: "Open app config folder",
 		openFolderFailed: "Couldn't open folder",
+		quit: "Quit",
+		quitTitle: "Quit CS2 Helper?",
+		quitDescription:
+			"CS2's volume goes back to 100%, and the overlay and hotkeys stop until you open the app again.",
+		quitCancel: "Cancel",
+		quitFailed: "Couldn't quit",
 	},
 	notice: {
 		saved: "Saved: {{label}}",

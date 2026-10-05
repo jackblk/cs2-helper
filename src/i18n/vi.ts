@@ -142,6 +142,12 @@ export const vi: typeof en = {
 		openCs2Folder: "Mở thư mục cấu hình CS2",
 		openAppFolder: "Mở thư mục cấu hình ứng dụng",
 		openFolderFailed: "Không mở được thư mục",
+		quit: "Thoát",
+		quitTitle: "Thoát CS2 Helper?",
+		quitDescription:
+			"Âm lượng CS2 sẽ về 100%, overlay và phím tắt sẽ ngừng hoạt động cho đến khi bạn mở lại ứng dụng.",
+		quitCancel: "Hủy",
+		quitFailed: "Không thoát được",
 	},
 	notice: {
 		saved: "Đã lưu: {{label}}",

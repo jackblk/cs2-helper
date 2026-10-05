@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { cn } from "cn";
-import { Check, Pause, Play, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,14 +102,6 @@ export function StatusBar({
 								{t("status.setUp")}
 							</>
 						)}
-					</Button>
-					<Button
-						variant={paused ? "default" : "destructive"}
-						className="w-26"
-						onClick={() => invoke("set_paused", { paused: !paused })}
-					>
-						{paused ? <Play /> : <Pause />}
-						{paused ? t("status.resume") : t("status.pause")}
 					</Button>
 				</div>
 			</CardContent>

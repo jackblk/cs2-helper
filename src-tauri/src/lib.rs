@@ -180,6 +180,13 @@ fn toggle_paused(app: &tauri::AppHandle) {
     *flag.0.lock().unwrap() = next;
 }
 
+/// The main page's Quit. Same path as the tray's Exit: `RunEvent::Exit`
+/// restores the volume and stops the engine.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[tauri::command]
 fn set_deathmatch(on: bool, engine: tauri::State<'_, Engine>, flag: tauri::State<'_, Deathmatch>) {
     engine.0.set_deathmatch(on);
@@ -561,6 +568,7 @@ pub fn run() {
             open_config_dir,
             set_paused,
             set_deathmatch,
+            quit_app,
             get_app_settings,
             save_config,
             overlay_edit_start,

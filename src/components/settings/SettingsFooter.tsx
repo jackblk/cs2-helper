@@ -1,9 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Ellipsis, FolderOpen, RefreshCw, RotateCcw } from "lucide-react";
+import {
+	Ellipsis,
+	FolderOpen,
+	Pause,
+	Play,
+	Power,
+	RefreshCw,
+	RotateCcw,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { UndoRedo } from "@/components/UndoRedo";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,7 +35,13 @@ import { openFolder } from "@/lib/folders";
 import { toastError } from "@/lib/toast";
 import type { ConfigPayload } from "@/lib/types";
 
-export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
+export function SettingsFooter({
+	cs2Found,
+	paused,
+}: {
+	cs2Found: boolean;
+	paused: boolean;
+}) {
 	const { t } = useTranslation();
 	const { resetDefaults, adoptExternal } = useLoadedSettings();
 
@@ -35,25 +59,14 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 
 	return (
 		<div className="flex items-center gap-2">
-			<UndoRedo />
-			<Separator orientation="vertical" className="mx-1 my-1" />
-			<Button variant="outline" onClick={resetDefaults}>
-				<RotateCcw />
-				{t("footer.resetDefaults")}
-			</Button>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button
-						variant="outline"
-						size="icon"
-						aria-label={t("footer.more")}
-						className="ml-auto"
-					>
+					<Button variant="outline" size="icon" aria-label={t("footer.more")}>
 						<Ellipsis />
 					</Button>
 				</DropdownMenuTrigger>
 				{/* Sized to its items, not to the narrow trigger. */}
-				<DropdownMenuContent align="end" className="w-max">
+				<DropdownMenuContent align="start" className="w-max">
 					<DropdownMenuItem onSelect={reloadConfig}>
 						<RefreshCw />
 						{t("footer.reloadConfig")}
@@ -72,6 +85,59 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
+			<Separator orientation="vertical" className="mx-1 my-1" />
+			<UndoRedo />
+			<Separator orientation="vertical" className="mx-1 my-1" />
+			<Button variant="outline" onClick={resetDefaults}>
+				<RotateCcw />
+				{t("footer.resetDefaults")}
+			</Button>
+			<QuitButton />
+			<Button
+				// Same width in both states so Pause/Resume never shifts the bar.
+				className="w-26"
+				onClick={() => invoke("set_paused", { paused: !paused })}
+			>
+				{paused ? <Play /> : <Pause />}
+				{paused ? t("status.resume") : t("status.pause")}
+			</Button>
 		</div>
+	);
+}
+
+// Quitting restores CS2's volume and stops the overlay and hotkeys, unlike
+// closing the window (which hides to the tray), so it asks first.
+function QuitButton() {
+	const { t } = useTranslation();
+	const quit = () =>
+		invoke("quit_app").catch((e) => toastError(t("footer.quitFailed"), e));
+
+	return (
+		<Dialog>
+			<DialogTrigger asChild>
+				<Button
+					variant="ghost"
+					className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+				>
+					<Power />
+					{t("footer.quit")}
+				</Button>
+			</DialogTrigger>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{t("footer.quitTitle")}</DialogTitle>
+					<DialogDescription>{t("footer.quitDescription")}</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose asChild>
+						<Button variant="outline">{t("footer.quitCancel")}</Button>
+					</DialogClose>
+					<Button variant="destructive" onClick={quit}>
+						<Power />
+						{t("footer.quit")}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }

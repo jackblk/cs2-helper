@@ -64,7 +64,7 @@ export function MainPage() {
 				<HotkeysSection />
 				<AppSection />
 			</div>
-			<SettingsFooter cs2Found={gsi.cfg_path != null} />
+			<SettingsFooter cs2Found={gsi.cfg_path != null} paused={snap.paused} />
 			<SetupDialog
 				open={setupOpen}
 				onOpenChange={setSetupOpen}
