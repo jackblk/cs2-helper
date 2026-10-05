@@ -156,11 +156,44 @@ pub fn ensure_alive(app: &tauri::AppHandle, cfg: &OverlayConfig) {
             if !win.is_visible().unwrap_or(true) {
                 let _ = win.show();
             }
-            // Focus-safe (SWP_NOACTIVATE). Re-claims topmost even when the
-            // window is still "visible" but the game has covered it.
-            let _ = win.set_always_on_top(true);
+            // Re-claims topmost even when the window is still "visible" but
+            // the game has covered it.
+            raise_topmost(&win);
         }
     }
+}
+
+/// tao's `set_always_on_top(true)` calls `SetWindowPos` only when its flag
+/// changes, so repeating it does nothing once the flag is set. A game that
+/// starts or takes focus can still push the overlay below it, so this always
+/// re-inserts the window at the top of the topmost band. Focus-safe
+/// (SWP_NOACTIVATE), and async so the watchdog never waits on the UI thread.
+#[cfg(windows)]
+fn raise_topmost(win: &WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOOWNERZORDER, SWP_NOSIZE,
+    };
+    let Ok(hwnd) = win.hwnd() else { return };
+    // Tauri's HWND comes from its own `windows` crate version.
+    let hwnd = HWND(hwnd.0 as _);
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn raise_topmost(win: &WebviewWindow) {
+    let _ = win.set_always_on_top(true);
 }
 
 fn monitor_rect(win: &WebviewWindow) -> Result<Rect, String> {
