@@ -31,7 +31,7 @@ export const vi: typeof en = {
 			flash: "Flash",
 			death: "Chết",
 			bomb: "Bom",
-			spectator: "Xem",
+			spectator: "Quan sát",
 		},
 	},
 	setup: {
@@ -170,7 +170,7 @@ export const vi: typeof en = {
 			flash: "flash",
 			death: "chết",
 			bomb: "bom",
-			spectator: "xem",
+			spectator: "quan sát",
 			deathmatch: "chế độ deathmatch",
 		},
 	},

@@ -64,7 +64,7 @@ export function StatusBar({
 									<Badge
 										variant={active ? "destructive" : "outline"}
 										className={cn(
-											"w-12 justify-center",
+											"min-w-12 justify-center",
 											!active && "text-muted-foreground",
 										)}
 									>

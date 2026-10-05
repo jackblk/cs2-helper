@@ -49,7 +49,9 @@ export function LanguageMenu() {
 					value={language}
 					onValueChange={(code) =>
 						commit(
-							t("header.language"),
+							// In the new language: the "Saved" toast around it is
+							// shown after the switch.
+							i18n.getFixedT(code)("header.language"),
 							withApp((a) => ({ ...a, language: code })),
 						)
 					}
