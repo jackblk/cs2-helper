@@ -10,6 +10,12 @@ export const en = {
 		byline: "by {{author}}",
 		language: "Language",
 	},
+	update: {
+		title: "Update available: {{version}}",
+		description: "You are on {{current}}.",
+		download: "Download",
+		badgeTooltip: "{{version}} is available. Click to open the download page.",
+	},
 	main: {
 		loadFailed: "Couldn't load settings: {{error}}",
 		retry: "Retry",

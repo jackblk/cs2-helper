@@ -12,6 +12,12 @@ export const vi: typeof en = {
 		byline: "bởi {{author}}",
 		language: "Ngôn ngữ",
 	},
+	update: {
+		title: "Có bản cập nhật: {{version}}",
+		description: "Bạn đang dùng {{current}}.",
+		download: "Tải về",
+		badgeTooltip: "Đã có bản {{version}}. Nhấn để mở trang tải về.",
+	},
 	main: {
 		loadFailed: "Không tải được cài đặt: {{error}}",
 		retry: "Thử lại",

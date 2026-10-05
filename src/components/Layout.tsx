@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -8,9 +8,16 @@ import { LanguageMenu } from "@/components/LanguageMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SettingsProvider } from "@/hooks/use-settings";
+import { useUpdateCheck } from "@/hooks/use-update-check";
 import { useFitWindowToContent } from "@/lib/fit-window";
+import { DOWNLOAD_PAGE_URL } from "@/lib/update-check";
 
 // The debug page is intentionally hidden behind a triple-click on the logo.
 const DEBUG_UNLOCK_CLICKS = 3;
@@ -27,6 +34,7 @@ export function Layout() {
 	useEffect(() => {
 		getVersion().then(setVersion);
 	}, []);
+	const latest = useUpdateCheck(version);
 	const clicks = useRef(0);
 	const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -85,11 +93,33 @@ export function Layout() {
 										</Link>
 									</Button>
 								)}
-								{version && (
-									<Badge variant="secondary" className="font-mono">
-										{version}
-									</Badge>
-								)}
+								{version &&
+									(latest ? (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Badge
+													asChild
+													className="bg-amber-500/15 font-mono text-amber-400 [a]:hover:bg-amber-500/25"
+												>
+													<a
+														href={DOWNLOAD_PAGE_URL}
+														target="_blank"
+														rel="noopener noreferrer"
+													>
+														<TriangleAlert data-icon="inline-start" />
+														{version}
+													</a>
+												</Badge>
+											</TooltipTrigger>
+											<TooltipContent>
+												{t("update.badgeTooltip", { version: latest })}
+											</TooltipContent>
+										</Tooltip>
+									) : (
+										<Badge variant="secondary" className="font-mono">
+											{version}
+										</Badge>
+									))}
 								<LanguageMenu />
 							</div>
 						</header>
