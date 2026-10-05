@@ -1,4 +1,16 @@
 ---
+import {
+	ArrowDown,
+	ChevronDown,
+	CodeXml,
+	Crosshair,
+	Download,
+	Layers,
+	MousePointerClick,
+	ShieldCheck,
+	SlidersHorizontal,
+	Timer,
+} from "@lucide/astro";
 import "../styles/global.css";
 
 const DOWNLOAD_URL =
@@ -14,20 +26,66 @@ const LATEST_RELEASE_API =
 const withBase = (path: string) =>
 	`${import.meta.env.BASE_URL}/${path}`.replace(/\/+/g, "/");
 
+// `full` (unused for now) makes a shot open that image in the #lightbox dialog.
+type Shot = { src: string; full?: string; caption: string };
+
+const highlights: {
+	icon: typeof Timer;
+	title: string;
+	body: string;
+	shots: Shot[];
+}[] = [
+	{
+		icon: SlidersHorizontal,
+		title: "Configurable audio events",
+		body: "Pick the events, the volume for each, and how long it stays down.",
+		shots: [{ src: "audio-events.webp", caption: "Audio events settings" }],
+	},
+	{
+		icon: Crosshair,
+		title: "Deathmatch mode",
+		body: "Zero (or minimal) sound to focus on aiming. One hotkey to toggle.",
+		shots: [{ src: "deathmatch-mode.webp", caption: "Deathmatch mode bar" }],
+	},
+	{
+		icon: Layers,
+		title: "Overlay",
+		body: "Shows the volume status & bomb timer. Click-through.",
+		shots: [
+			{
+				src: "overlay-audio-status.webp",
+				caption: "Volume status while spectating",
+			},
+			{ src: "overlay-bomb-timer.webp", caption: "Bomb timer" },
+		],
+	},
+	{
+		icon: Timer,
+		title: "Bomb timer",
+		body: "Defuse or save, based on your kit. Approximate (±1 s): CS2 reports bomb timing slightly off on purpose.",
+		shots: [
+			{
+				src: "overlay-bomb-defuse.webp",
+				caption: "With kit, defuse",
+			},
+			{ src: "overlay-bomb-run.webp", caption: "No kit, just run" },
+		],
+	},
+];
+
 const features = [
 	{
+		icon: ShieldCheck,
 		title: "Anti-cheat safe",
 		body: "No interaction with the game. Only official Valve GSI events and OS audio APIs.",
 	},
 	{
+		icon: MousePointerClick,
 		title: "Easy to use",
 		body: "One-click setup. Auto reduce & restore volume of only CS2's audio. Other apps unaffected.",
 	},
 	{
-		title: "Configurable",
-		body: "Tune volume targets and per-event behavior to match how you play.",
-	},
-	{
+		icon: CodeXml,
 		title: "Free and open source",
 		body: "Audit or build the app yourself.",
 	},
@@ -46,10 +104,14 @@ const faqs = [
 		q: "Does it support Linux or macOS?",
 		a: "Not at the moment, the audio backend is Windows-specific. The app is built with Tauri, so cross-platform support is possible. Contributions are welcome.",
 	},
+	{
+		q: "Is the bomb timer overlay allowed?",
+		a: "The timer is computed only from the official GSI data CS2 sends to the app; nothing else is read from the game. Check the rules of the platform you play on. If it does not allow overlays like this, turn off the bomb timer (or the whole overlay) with one switch.",
+	},
 ];
 ---
 
-<html lang="en" class="dark">
+<html lang="en" class="dark scroll-smooth">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href={withBase("favicon.svg")} />
@@ -58,29 +120,46 @@ const faqs = [
 		<title>CS2 Helper - auto-reduce Counter-Strike 2 volume</title>
 		<meta
 			name="description"
-			content="A Windows utility that automatically lowers only Counter-Strike 2's volume during loud events — death, flashbangs, bomb blasts, spectating — then restores it. Anti-cheat safe."
+			content="A Windows utility that automatically lowers only Counter-Strike 2's volume during loud events (death, flashbangs, bomb blasts, spectating), then restores it. Includes a bomb timer overlay and a Deathmatch mode. Anti-cheat safe."
 		/>
 	</head>
 	<body class="min-h-screen bg-background text-foreground antialiased">
 		<div class="mx-auto flex max-w-3xl flex-col gap-24 px-6 py-20 sm:py-28">
 			<!-- Hero -->
 			<header class="flex flex-col items-center text-center">
-				<img
-					src={withBase("icon.png")}
-					alt="CS2 Helper icon"
-					width="80"
-					height="80"
-					class="mb-6 rounded-2xl shadow-lg"
-				/>
-				<h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
-					CS2 Helper
-				</h1>
+				<div class="flex items-center gap-4">
+					<img
+						src={withBase("icon.png")}
+						alt="CS2 Helper icon"
+						width="56"
+						height="56"
+						class="rounded-xl shadow-lg"
+					/>
+					<div class="flex items-baseline gap-3">
+						<h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
+							CS2 Helper
+						</h1>
+						<p class="text-sm text-muted-foreground">
+							by{" "}
+							<a
+								href="https://github.com/jackblk"
+								target="_blank"
+								rel="noopener"
+								class="underline underline-offset-4 hover:text-foreground"
+								>jackblk</a
+							>
+						</p>
+					</div>
+				</div>
 				<p class="mt-5 max-w-xl text-lg text-muted-foreground">
 					Protect your ears by automatically lowering <span class="font-medium text-foreground"
 						>only Counter-Strike 2's</span
-					> volume during loud in-game events:
-					<br />
-					death, flashbangs, bomb blasts, spectating.
+					> volume during loud in-game events.{" "}
+					<a
+						href="#features"
+						class="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4 hover:text-foreground/80"
+						>And more! <ArrowDown class="size-4" /></a
+					>
 				</p>
 
 				<div class="mt-8 flex flex-wrap items-stretch justify-center gap-3">
@@ -88,7 +167,10 @@ const faqs = [
 						href={DOWNLOAD_URL}
 						class="inline-flex min-h-11 flex-col items-center justify-center rounded-md bg-primary px-6 py-1.5 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
-						<span>Download for Windows</span>
+						<span class="inline-flex items-center gap-2">
+							<Download class="size-4" />
+							Download for Windows
+						</span>
 						<span
 							id="latest-version"
 							class="text-xs font-normal text-primary-foreground/70"
@@ -98,8 +180,19 @@ const faqs = [
 						href={REPO_URL}
 						target="_blank"
 						rel="noopener"
-						class="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-transparent px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-input bg-transparent px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
+						<!-- GitHub mark (Primer Octicons mark-github-16); Lucide has no brand icons. -->
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 16 16"
+							fill="currentColor"
+							aria-hidden="true"
+							class="size-4"
+							><path
+								d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656"
+							></path></svg
+						>
 						View on GitHub
 					</a>
 				</div>
@@ -114,15 +207,68 @@ const faqs = [
 			</header>
 
 			<!-- Features -->
-			<section>
-				<h2 class="mb-8 text-center text-2xl font-semibold tracking-tight">
+			<section id="features" class="flex scroll-mt-8 flex-col gap-16">
+				<h2 class="-mb-8 text-center text-2xl font-semibold tracking-tight">
 					Features
 				</h2>
-				<div class="grid gap-4 sm:grid-cols-2">
+				{
+					highlights.map((h) => (
+						<div>
+							<h3 class="flex items-center justify-center gap-2 text-xl font-medium">
+								<h.icon class="size-5" />
+								{h.title}
+							</h3>
+							<p class="mx-auto mt-2 mb-6 max-w-xl text-center text-muted-foreground">
+								{h.body}
+							</p>
+							<div
+								class:list={[
+									"grid gap-4",
+									h.shots.length > 1 && "sm:grid-cols-2",
+								]}
+							>
+								{h.shots.map((s) => {
+									const img = (
+										<img
+											src={withBase(s.src)}
+											alt={s.caption}
+											class:list={[
+												"w-full rounded-xl border border-border",
+												h.shots.length > 1 && "aspect-17/10 object-cover",
+												s.full && "transition-opacity hover:opacity-90",
+											]}
+											loading="lazy"
+										/>
+									);
+									return (
+										<figure>
+											{s.full ? (
+												<a href={withBase(s.full)} data-lightbox class="block">
+													{img}
+												</a>
+											) : (
+												img
+											)}
+											{h.shots.length > 1 && (
+												<figcaption class="mt-2 text-center text-sm text-muted-foreground">
+													{s.caption}
+												</figcaption>
+											)}
+										</figure>
+									);
+								})}
+							</div>
+						</div>
+					))
+				}
+				<div class="grid gap-4 sm:grid-cols-3">
 					{
 						features.map((f) => (
 							<div class="rounded-xl border border-border bg-card p-5">
-								<h3 class="font-medium text-card-foreground">{f.title}</h3>
+								<h3 class="flex items-center gap-2 font-medium text-card-foreground">
+									<f.icon class="size-4" />
+									{f.title}
+								</h3>
 								<p class="mt-1.5 text-sm text-muted-foreground">{f.body}</p>
 							</div>
 						))
@@ -152,8 +298,9 @@ const faqs = [
 					{
 						faqs.map((item) => (
 							<details class="group rounded-xl border border-border bg-card p-5">
-								<summary class="marker:hidden cursor-pointer list-none font-medium text-card-foreground">
+								<summary class="marker:hidden flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-card-foreground">
 									{item.q}
+									<ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
 								</summary>
 								<p class="mt-3 text-sm text-muted-foreground">{item.a}</p>
 							</details>
@@ -181,6 +328,29 @@ const faqs = [
 				</p>
 			</footer>
 		</div>
+
+		<dialog
+			id="lightbox"
+			class="m-auto max-h-[90vh] max-w-[92vw] cursor-zoom-out bg-transparent p-0 backdrop:bg-black/80"
+		>
+			<img id="lightbox-img" alt="" class="max-h-[90vh] w-auto rounded-xl" />
+		</dialog>
+
+		<script is:inline>
+			// Gallery links open the full image in a dialog; Esc or any click closes it.
+			// Without JS the links still open the image directly.
+			const lightbox = document.getElementById("lightbox");
+			const lightboxImg = document.getElementById("lightbox-img");
+			for (const link of document.querySelectorAll("a[data-lightbox]")) {
+				link.addEventListener("click", (e) => {
+					e.preventDefault();
+					lightboxImg.src = link.href;
+					lightboxImg.alt = link.querySelector("img")?.alt ?? "";
+					lightbox.showModal();
+				});
+			}
+			lightbox.addEventListener("click", () => lightbox.close());
+		</script>
 
 		<script is:inline define:vars={{ LATEST_RELEASE_API }}>
 			// Fetch the latest release tag at runtime and label the download button.
