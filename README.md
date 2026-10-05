@@ -2,65 +2,13 @@
 
 [![release](https://github.com/jackblk/cs2-helper/actions/workflows/release.yml/badge.svg)](https://github.com/jackblk/cs2-helper/releases)
 
-An utility for accessibility in **Counter-Strike 2**. It automatically reduces **only CS2's** per-app volume during loud in-game events (death, flashbang, bomb, spectating) and restores it afterward.
+A utility for accessibility in **Counter-Strike 2**. It automatically reduces **only CS2's** per-app volume during loud in-game events and restores it afterward.
 
-Homepage: https://jackblk.github.io/cs2-helper/
+**Features, screenshots and FAQ: [homepage](https://jackblk.github.io/cs2-helper/).**
 
-Download latest release here: [CS2.Helper-x64.exe](https://github.com/jackblk/cs2-helper/releases/latest/download/CS2.Helper-x64.exe)
+Download the latest release: [CS2.Helper-x64.exe](https://github.com/jackblk/cs2-helper/releases/latest/download/CS2.Helper-x64.exe), or pick another one from the [Releases page](https://github.com/jackblk/cs2-helper/releases).
 
-Or choose another release from [Releases Page](https://github.com/jackblk/cs2-helper/releases).
-
-## Features
-
-* **Anti-cheat safe**: no memory reads, DLL injection, or game file changes.
-* **Event-driven**: reduces volume in response to specific in-game events (configurable).
-  * Death
-  * Flashbang
-  * Bomb explosion
-  * Spectating
-* **Automatic restore**: returns volume to normal once the loud event passes.
-* **Per-app volume control**: reduces only CS2's volume, leaving other apps untouched.
-* **One-click setup**: installs the CS2 GSI config for you.
-* **Configurable**: tune volume targets and behavior.
-
-Currently only supports Win 11.
-
-![main ss](./docs/screenshots/screenshot.png)
-
-### In-game overlay
-
-A bomb defuse timer drawn over CS2. When the C4 is planted, a small overlay appears and counts down to detonation, color-coded so you can read it at a glance.
-
-* **Green / red**: red means run (a defuse can no longer finish in time); green means a defuse might still finish (not a guarantee).
-* **Informational / approximate**: CS2 adds a small random detonation delay and the exact plant time is not in GSI, so treat the timer as a guide, not an exact clock.
-* **Requires fullscreen-windowed / borderless**: exclusive fullscreen hides any external overlay.
-* **Anti-cheat safe**: a separate floating OS window driven only by official GSI events, with no injection or memory reads.
-* **On by default**: configure it on the Main page (enable, size, bomb timer, and drag-to-position).
-
-### FAQ
-
-#### Will this get me banned (VAC/Faceit...)?
-
-No. It uses official GSI (Game State Integration) provided by Valve, which is read-only and designed for third-party apps. It does not interact with the game in any way that would trigger anti-cheat systems.
-
-#### Is this safe to use?
-
-Yes.
-
-* You can read, modify, or build from the source code yourself.
-* VirusTotal scan is attach to each release in [Releases Page](https://github.com/jackblk/cs2-helper/releases).
-
-#### Linux support?
-
-Not planned at the moment, as the audio backend is Windows-specific. I also don't play games on Linux, so I wouldn't be able to test it. Feel free to contribute if you want to see it on Linux, this app uses Tauri so cross-platform support is possible.
-
-#### Did you use AI?
-
-Yes why not, it's just a tool. I'm a dev myself, I came up with the architecture, decisions. Feel free to contribute if you want to add features or improve the codebase.
-
-#### I want to add X feature
-
-Feel free to create an issue or, better, a pull request. I can't promise I'll merge every contribution, but I'm open to new features and improvements.
+![main ss](./site/public/screenshot.png)
 
 ## Supporters
 
@@ -82,32 +30,77 @@ flowchart LR
     CoreAudio -- "set cs2.exe session volume" --> CS2
 ```
 
-The app installs a CS2 GSI config automatically, CS2 will send GSI events to the local server, and the helper adjusts the cs2.exe audio session volume in response to game events.
+* **GSI:** the app writes `gamestate_integration_cs2helper.cfg` into `<CS2 install>\game\csgo\cfg` (found through the Steam registry and `libraryfolders.vdf`). CS2 then posts game state to a local server on `127.0.0.1:31211`, authenticated with a per-install token.
+* **Audio:** only the `cs2.exe` session is touched, through Windows Core Audio. Volumes are absolute targets (not relative to your current level). When several reductions overlap, the lowest one wins, and the volume always restores to 100%.
+* **Overlay:** a separate transparent, click-through, always-on-top window, driven by the same GSI data. No injection, memory reads or game file changes.
+
+## Configuration
+
+Settings live in `%APPDATA%\com.jackblk.cs2-helper\config.toml`.
+
+* The app saves every change automatically, keeping the file's comments.
+* The file is human-editable. After editing it by hand, use **Reload config** (the `⋯` menu or the tray).
+* Settings added in a new version are appended to your file on load; existing values are never touched.
+* **Reset to defaults** backs up the old file to `config.toml.bak` first.
+
+## Notes
+
+* **Windows 11 only.** The audio backend is Windows-specific.
+* **The overlay needs borderless windowed** (fullscreen windowed). Exclusive fullscreen hides any external overlay.
+* **The bomb timer is approximate.** CS2 adds a small random detonation delay and GSI does not report the exact plant time, so treat it as a guide, not an exact clock.
+* **Hotkeys are captured system-wide** (Win32 `RegisterHotKey`, no keyboard hooks), so CS2 never receives a key bound in the app.
+* **Deathmatch mode is manual.** Community deathmatch servers report their mode as `custom`, so it cannot be detected reliably. It is off at every launch.
+
+## FAQ
+
+The common questions (anti-cheat, safety, Linux) are answered on the [homepage](https://jackblk.github.io/cs2-helper/).
+
+### Did you use AI?
+
+Yes, it's just a tool. I'm a dev myself, I came up with the architecture, decisions. Feel free to contribute if you want to add features or improve the codebase.
+
+### I want to add X feature
+
+Feel free to create an issue or, better, a pull request. I can't promise I'll merge every contribution, but I'm open to new features and improvements.
 
 ## Development
 
 ### Stack
 
-* **Tauri v2** (Rust backend) + **React**
-* **windows-rs** for Core Audio
+* **App:** Tauri v2 (Rust) + React, Vite, Tailwind, shadcn/ui, react-i18next
+* **Audio:** windows-rs (Core Audio)
+* **Homepage:** Astro, in `site/` (a pnpm workspace package)
+
+Architecture and conventions are in [AGENTS.md](./AGENTS.md).
 
 ### Commands
 
 ```sh
 pnpm install
-pnpm format       # format with Biome
-pnpm tauri dev    # run the app with hot reload (Vite + Rust)
-pnpm build        # typecheck + build the frontend
-pnpm tauri build  # build the Tauri app (release mode)
+pnpm tauri dev           # run the app with hot reload (Vite + Rust)
+pnpm build               # typecheck + build the frontend
+pnpm test                # frontend unit tests (Vitest)
+pnpm format              # format with Biome
+pnpm tauri build         # build the Tauri app (release mode)
+pnpm site:dev            # run the homepage locally
+pnpm screenshot:windows  # capture the running app into site/public/screenshot.png
 ```
 
-Typecheck Rust without launching:
+Rust typecheck and tests:
 
 ```sh
 cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-> Windows-only. The audio backend is gated behind `#![cfg(windows)]`.
+### Releasing
+
+`package.json` holds the version; `pnpm bump` keeps `Cargo.toml` and `Cargo.lock` in sync.
+
+```sh
+pnpm bump 0.4.1   # set the version everywhere, then commit and push
+pnpm release      # confirm, then tag and push; CI builds a draft GitHub release
+```
 
 ## References
 
