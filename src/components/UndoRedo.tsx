@@ -13,32 +13,37 @@ export function UndoRedo() {
 	const { undo, redo, undoLabel, redoLabel, overlayEditing } = useSettings();
 	useUndoShortcuts(undo, redo, !overlayEditing);
 	return (
-		<div className="flex items-center gap-1">
+		<>
 			<HistoryButton
-				label={undoLabel ? `Undo ${undoLabel}` : "Undo"}
+				label="Undo"
+				// The tooltip names the step; the label stays short and fixed.
+				tooltip={undoLabel ? `Undo ${undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
 				disabled={!undoLabel || overlayEditing}
 				onClick={undo}
 			>
 				<Undo2 />
 			</HistoryButton>
 			<HistoryButton
-				label={redoLabel ? `Redo ${redoLabel}` : "Redo"}
+				label="Redo"
+				tooltip={redoLabel ? `Redo ${redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
 				disabled={!redoLabel || overlayEditing}
 				onClick={redo}
 			>
 				<Redo2 />
 			</HistoryButton>
-		</div>
+		</>
 	);
 }
 
 function HistoryButton({
 	label,
+	tooltip,
 	disabled,
 	onClick,
 	children,
 }: {
 	label: string;
+	tooltip: string;
 	disabled: boolean;
 	onClick: () => void;
 	children: ReactNode;
@@ -46,17 +51,12 @@ function HistoryButton({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={label}
-					disabled={disabled}
-					onClick={onClick}
-				>
+				<Button variant="outline" disabled={disabled} onClick={onClick}>
 					{children}
+					{label}
 				</Button>
 			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
+			<TooltipContent>{tooltip}</TooltipContent>
 		</Tooltip>
 	);
 }

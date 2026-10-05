@@ -55,8 +55,7 @@ function showNotice(n: StoreNotice) {
 	toast.success(text, { id: SAVE_TOAST_ID });
 }
 
-// Lives in Layout so the header can reach undo/redo and history survives a
-// visit to the Debug page.
+// Lives in Layout so history survives a visit to the Debug page.
 export function SettingsProvider({ children }: { children: ReactNode }) {
 	const [store] = useState(() =>
 		createSettingsStore<Settings>({
