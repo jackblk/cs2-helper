@@ -69,6 +69,7 @@ const STATUS_LABELS: Record<string, string> = {
 	death: "death",
 	bomb: "bomb",
 	spectator: "spec",
+	deathmatch: "deathmatch mode",
 };
 
 // The reduction that sets the volume (the smallest wins), or null at 100%.

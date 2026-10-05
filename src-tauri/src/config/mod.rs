@@ -46,6 +46,19 @@ pub struct TimedEventCfg {
     pub duration_ms: u64,
 }
 
+/// Volume held while Deathmatch mode is on. The on/off state is runtime only
+/// (the engine's), so there is no `enabled`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct DeathmatchCfg {
+    pub volume: f32,
+}
+
+impl Default for DeathmatchCfg {
+    fn default() -> Self {
+        DEFAULTS.audio.deathmatch
+    }
+}
+
 /// `pos_*` are logical pixels (`None`: default top-center placement);
 /// `scale` multiplies the base size.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -76,6 +89,12 @@ pub struct HotkeyCfg {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HotkeysConfig {
     pub pause: HotkeyCfg,
+    #[serde(default = "default_deathmatch_hotkey")]
+    pub deathmatch: HotkeyCfg,
+}
+
+fn default_deathmatch_hotkey() -> HotkeyCfg {
+    DEFAULTS.hotkeys.deathmatch.clone()
 }
 
 impl Default for HotkeysConfig {
@@ -90,6 +109,9 @@ pub struct Config {
     pub flash: EventCfg,
     pub bomb: TimedEventCfg,
     pub spectator: EventCfg,
+    // `serde(default)`: UI JSON may omit it.
+    #[serde(default)]
+    pub deathmatch: DeathmatchCfg,
 }
 
 impl Default for Config {
@@ -150,6 +172,7 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
         audio[name]["enabled"] = value(ev.enabled);
         audio[name]["volume"] = float(ev.volume);
     }
+    audio["deathmatch"]["volume"] = float(config.deathmatch.volume);
 
     doc["app"]["start_with_windows"] = value(app.start_with_windows);
     doc["app"]["start_minimized"] = value(app.start_minimized);
@@ -170,6 +193,9 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
     let pause = &mut doc["hotkeys"]["pause"];
     pause["enabled"] = value(app.hotkeys.pause.enabled);
     pause["key"] = value(app.hotkeys.pause.key.as_str());
+    let deathmatch = &mut doc["hotkeys"]["deathmatch"];
+    deathmatch["enabled"] = value(app.hotkeys.deathmatch.enabled);
+    deathmatch["key"] = value(app.hotkeys.deathmatch.key.as_str());
 
     doc.to_string()
 }
@@ -316,6 +342,9 @@ pub fn parse(text: &str) -> (Config, AppConfig, Vec<String>) {
                         "spectator" => {
                             apply_event(table, "spectator", &mut cfg.spectator, &mut warnings)
                         }
+                        "deathmatch" => {
+                            apply_deathmatch(table, &mut cfg.deathmatch, &mut warnings)
+                        }
                         other => {
                             warnings.push(format!("unknown table [audio.{other}] ignored"))
                         }
@@ -350,6 +379,12 @@ pub fn parse(text: &str) -> (Config, AppConfig, Vec<String>) {
                         "pause" => {
                             apply_hotkey(table, "pause", &mut app.hotkeys.pause, &mut warnings)
                         }
+                        "deathmatch" => apply_hotkey(
+                            table,
+                            "deathmatch",
+                            &mut app.hotkeys.deathmatch,
+                            &mut warnings,
+                        ),
                         other => {
                             warnings.push(format!("unknown table [hotkeys.{other}] ignored"))
                         }
@@ -473,6 +508,15 @@ fn apply_timed(
             "volume" => set_volume(value, name, key, &mut out.volume, warnings),
             "duration_ms" => set_duration(value, name, key, &mut out.duration_ms, warnings),
             _ => warnings.push(format!("unknown key audio.{name}.{key} ignored")),
+        }
+    }
+}
+
+fn apply_deathmatch(table: &toml::Table, out: &mut DeathmatchCfg, warnings: &mut Vec<String>) {
+    for (key, value) in table {
+        match key.as_str() {
+            "volume" => set_volume(value, "deathmatch", key, &mut out.volume, warnings),
+            _ => warnings.push(format!("unknown key audio.deathmatch.{key} ignored")),
         }
     }
 }
@@ -701,6 +745,7 @@ mod tests {
         c.flash.volume = 0.05;
         c.death.enabled = false;
         c.bomb.duration_ms = 2000;
+        c.deathmatch.volume = 0.1;
         let a = AppConfig {
             start_with_windows: true,
             start_minimized: true,
@@ -709,6 +754,10 @@ mod tests {
                 pause: HotkeyCfg {
                     enabled: false,
                     key: "Ctrl+Shift+F9".to_string(),
+                },
+                deathmatch: HotkeyCfg {
+                    enabled: false,
+                    key: "Ctrl+F8".to_string(),
                 },
             },
         };
@@ -752,6 +801,10 @@ mod tests {
         assert_eq!(c.bomb.duration_ms, 1500);
         assert!(c.spectator.enabled);
         assert_eq!(c.spectator.volume, 0.60);
+        assert_eq!(c.deathmatch.volume, 0.0);
+        let h = HotkeysConfig::default();
+        assert!(h.deathmatch.enabled);
+        assert_eq!(h.deathmatch.key, "F8");
     }
 
     const AUDIO_SAMPLE: &str = r#"

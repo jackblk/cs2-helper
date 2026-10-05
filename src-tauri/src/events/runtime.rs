@@ -25,6 +25,7 @@ enum EngineMsg {
     State(Box<GameState>),
     NewConfig(Config, Vec<String>),
     SetPaused(bool),
+    SetDeathmatch(bool),
     Shutdown,
 }
 
@@ -46,6 +47,8 @@ pub struct EngineSnapshot {
     pub config: Option<Config>,
     pub config_warnings: Vec<String>,
     pub paused: bool,
+    /// Manual Deathmatch mode; off at every launch.
+    pub deathmatch: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,6 +87,10 @@ impl EngineHandle {
 
     pub fn set_paused(&self, paused: bool) {
         let _ = self.tx.lock().unwrap().send(EngineMsg::SetPaused(paused));
+    }
+
+    pub fn set_deathmatch(&self, on: bool) {
+        let _ = self.tx.lock().unwrap().send(EngineMsg::SetDeathmatch(on));
     }
 
     pub fn snapshot(&self) -> EngineSnapshot {
@@ -134,6 +141,7 @@ pub fn start_engine<A: AudioControl>(
         let mut log: Vec<LogEntry> = Vec::new();
         let mut was_gone = false;
         let mut paused = false;
+        let mut deathmatch = false;
 
         loop {
             let msg = rx.recv_timeout(options.tick);
@@ -163,6 +171,15 @@ pub fn start_engine<A: AudioControl>(
                         }
                     }
                 }
+                Ok(EngineMsg::SetDeathmatch(on)) => {
+                    if on != deathmatch {
+                        deathmatch = on;
+                        triggers.push(
+                            if on { "deathmatch mode on" } else { "deathmatch mode off" }
+                                .to_string(),
+                        );
+                    }
+                }
                 Ok(EngineMsg::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
                     if applied.is_some() {
                         let _ = audio.set_volume(1.0);
@@ -179,7 +196,9 @@ pub fn start_engine<A: AudioControl>(
             let mut session_gone = false;
             let mut reapply = false;
             if !paused {
-                let wants_duck = core::target(&core::active(&state, &latches, &cfg)).is_some();
+                let wants_duck =
+                    core::target(&core::active_with_modes(&state, &latches, &cfg, deathmatch))
+                        .is_some();
                 if (wants_duck || applied.is_some())
                     && now.duration_since(last_poll) >= options.poll
                 {
@@ -189,13 +208,18 @@ pub fn start_engine<A: AudioControl>(
                             // Game closed or crashed: discard all duck state,
                             // new GSI events rebuild it from scratch.
                             session_gone = true;
-                            was_gone = true;
                             latches.clear();
                             state = GameState::default();
                             applied = None;
-                            triggers.push(
-                                "cs2.exe session gone → reduction state discarded".to_string(),
-                            );
+                            // Deathmatch mode keeps wanting a duck with CS2
+                            // closed, so this repeats every poll: log it once.
+                            if !was_gone {
+                                triggers.push(
+                                    "cs2.exe session gone → reduction state discarded"
+                                        .to_string(),
+                                );
+                            }
+                            was_gone = true;
                         }
                         // Re-apply below so a restarted cs2.exe immediately
                         // regains protection.
@@ -214,7 +238,7 @@ pub fn start_engine<A: AudioControl>(
             let active = if paused {
                 Vec::new()
             } else {
-                core::active(&state, &latches, &cfg)
+                core::active_with_modes(&state, &latches, &cfg, deathmatch)
             };
             let new_target = core::target(&active);
             let mut decision = core::describe_decision(applied, new_target, &active);
@@ -257,6 +281,7 @@ pub fn start_engine<A: AudioControl>(
                     config: Some(cfg),
                     config_warnings: warnings.clone(),
                     paused,
+                    deathmatch,
                 };
                 *shared.lock().unwrap() = snap.clone();
                 on_update(snap);
@@ -471,6 +496,44 @@ mod tests {
         handle.send_state(flashed);
         wait_for(&rx, |s| s.target == Some(0.15));
         assert!(audio.sets.lock().unwrap().contains(&0.15));
+        handle.shutdown();
+    }
+
+    #[test]
+    fn deathmatch_mode_holds_volume_until_switched_off() {
+        let audio = FakeAudio::default();
+        let (handle, rx) = start(audio.clone());
+        handle.send_state(alive());
+
+        handle.set_deathmatch(true);
+        let snap = wait_for(&rx, |s| s.deathmatch && s.target == Some(0.0));
+        assert!(snap.log.iter().any(|e| e.trigger == "deathmatch mode on"));
+        assert_eq!(audio.sets.lock().unwrap().last(), Some(&0.0));
+
+        // Pause restores but keeps the mode for after resuming.
+        handle.set_paused(true);
+        wait_for(&rx, |s| s.paused && s.deathmatch && s.target.is_none());
+        handle.set_paused(false);
+        wait_for(&rx, |s| !s.paused && s.target == Some(0.0));
+
+        handle.set_deathmatch(false);
+        wait_for(&rx, |s| !s.deathmatch && s.target.is_none());
+        assert_eq!(audio.sets.lock().unwrap().last(), Some(&1.0));
+        handle.shutdown();
+    }
+
+    #[test]
+    fn deathmatch_mode_with_cs2_closed_logs_session_gone_once() {
+        let audio = FakeAudio::default();
+        audio.gone.store(true, Ordering::SeqCst);
+        let (handle, rx) = start(audio.clone());
+        handle.set_deathmatch(true);
+        wait_for(&rx, |s| s.log.iter().any(|e| e.trigger.contains("session gone")));
+        // Several poll intervals (30 ms each) later, still one entry.
+        std::thread::sleep(Duration::from_millis(200));
+        let snap = handle.snapshot();
+        let gone = snap.log.iter().filter(|e| e.trigger.contains("session gone")).count();
+        assert_eq!(gone, 1, "{:?}", snap.log);
         handle.shutdown();
     }
 

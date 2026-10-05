@@ -26,6 +26,11 @@ duration_ms = 1500
 enabled = true
 volume = 0.60
 
+# Deathmatch mode: while switched on (from the app or its hotkey), hold the
+# volume here. It starts off every launch, so there is no enabled key.
+[audio.deathmatch]
+volume = 0.0
+
 # App behavior.
 # start_with_windows: launch on login via a Startup-folder shortcut (no registry).
 # start_minimized: start hidden in the tray instead of showing the window.
@@ -54,3 +59,8 @@ scale = 1.00
 [hotkeys.pause]
 enabled = true
 key = "F10"
+
+# Toggle Deathmatch mode.
+[hotkeys.deathmatch]
+enabled = true
+key = "F8"

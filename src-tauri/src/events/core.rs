@@ -14,6 +14,7 @@ pub enum Kind {
     Flash,
     Bomb,
     Spectator,
+    Deathmatch,
 }
 
 /// `volume` is the absolute target (0.0..=1.0), not relative to a baseline.
@@ -72,6 +73,21 @@ pub fn active(state: &GameState, latches: &Latches, cfg: &Config) -> Vec<Active>
     out
 }
 
+/// `active` plus the manual Deathmatch mode, which the user switches on and
+/// off, so it applies everywhere (the menu included).
+pub fn active_with_modes(
+    state: &GameState,
+    latches: &Latches,
+    cfg: &Config,
+    deathmatch: bool,
+) -> Vec<Active> {
+    let mut out = active(state, latches, cfg);
+    if deathmatch {
+        out.push(Active { kind: Kind::Deathmatch, volume: cfg.deathmatch.volume });
+    }
+    out
+}
+
 /// Most protective wins (minimum volume). `None` means no reduction.
 pub fn target(active: &[Active]) -> Option<f32> {
     active.iter().map(|a| a.volume).min_by(|a, b| a.total_cmp(b))
@@ -87,6 +103,7 @@ fn kind_name(kind: Kind) -> &'static str {
         Kind::Flash => "flash",
         Kind::Bomb => "bomb",
         Kind::Spectator => "spectator",
+        Kind::Deathmatch => "deathmatch",
     }
 }
 
@@ -306,6 +323,22 @@ mod tests {
         let a = active(&alive(), &latches, &cfg);
         assert_eq!(a.len(), 2);
         assert_eq!(target(&a), Some(0.30));
+    }
+
+    #[test]
+    fn deathmatch_mode_applies_everywhere_and_min_wins() {
+        let cfg = Config::default();
+        let latches = Latches::default();
+        assert!(active_with_modes(&alive(), &latches, &cfg, false).is_empty());
+        let a = active_with_modes(&alive(), &latches, &cfg, true);
+        assert_eq!(a, vec![Active { kind: Kind::Deathmatch, volume: 0.0 }]);
+        let mut menu = alive();
+        menu.activity = Some("menu".into());
+        assert_eq!(target(&active_with_modes(&menu, &latches, &cfg, true)), Some(0.0));
+        // A flash at 15% does not lift the deathmatch 0%.
+        let mut flashed = alive();
+        flashed.flashed = Some(255);
+        assert_eq!(target(&active_with_modes(&flashed, &latches, &cfg, true)), Some(0.0));
     }
 
     #[test]

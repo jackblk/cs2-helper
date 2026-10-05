@@ -8,6 +8,8 @@ export type Config = {
 	flash: EventCfg;
 	bomb: TimedEventCfg;
 	spectator: EventCfg;
+	// Volume only: Deathmatch mode's on/off is the engine's runtime state.
+	deathmatch: { volume: number };
 };
 
 export type OverlayConfig = {
@@ -23,7 +25,7 @@ export type OverlayConfig = {
 
 export type HotkeyCfg = { enabled: boolean; key: string };
 
-export type HotkeysConfig = { pause: HotkeyCfg };
+export type HotkeysConfig = { pause: HotkeyCfg; deathmatch: HotkeyCfg };
 
 export type AppConfig = {
 	start_with_windows: boolean;
@@ -42,6 +44,7 @@ export type EngineSnapshot = {
 	config: Config | null;
 	config_warnings: string[];
 	paused: boolean;
+	deathmatch: boolean;
 };
 
 export type GsiStatus = {

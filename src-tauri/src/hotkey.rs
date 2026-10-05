@@ -11,11 +11,15 @@ use crate::config::{HotkeyCfg, HotkeysConfig};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Pause,
+    Deathmatch,
 }
 
 /// Add new hotkeys here.
-fn bindings(cfg: &HotkeysConfig) -> [(Action, &HotkeyCfg); 1] {
-    [(Action::Pause, &cfg.pause)]
+fn bindings(cfg: &HotkeysConfig) -> [(Action, &HotkeyCfg); 2] {
+    [
+        (Action::Pause, &cfg.pause),
+        (Action::Deathmatch, &cfg.deathmatch),
+    ]
 }
 
 static ACTIVE: Mutex<Vec<(Shortcut, Action)>> = Mutex::new(Vec::new());

@@ -2,6 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppSection } from "@/components/settings/AppSection";
 import { AudioSection } from "@/components/settings/AudioSection";
+import { DeathmatchBar } from "@/components/settings/DeathmatchBar";
 import { HotkeysSection } from "@/components/settings/HotkeysSection";
 import { OverlaySection } from "@/components/settings/OverlaySection";
 import { SettingsFooter } from "@/components/settings/SettingsFooter";
@@ -47,7 +48,14 @@ export function MainPage() {
 
 	return (
 		<div className="space-y-6">
-			<StatusBar snap={snap} gsi={gsi} onOpenSetup={() => setSetupOpen(true)} />
+			<div className="space-y-4">
+				<StatusBar
+					snap={snap}
+					gsi={gsi}
+					onOpenSetup={() => setSetupOpen(true)}
+				/>
+				<DeathmatchBar on={snap.deathmatch} />
+			</div>
 			<div className="space-y-4">
 				<AudioSection />
 				<OverlaySection />

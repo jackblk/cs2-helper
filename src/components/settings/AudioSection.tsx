@@ -8,7 +8,8 @@ import { withConfig } from "@/lib/settings";
 import type { Config, EventCfg, TimedEventCfg } from "@/lib/types";
 import { pct } from "@/lib/utils";
 
-type EventKey = keyof Config;
+// Deathmatch mode has its own bar (DeathmatchBar).
+type EventKey = Exclude<keyof Config, "deathmatch">;
 
 const EVENTS: { key: EventKey; label: string; when: string }[] = [
 	{ key: "flash", label: "Flash", when: "When you're flashed" },

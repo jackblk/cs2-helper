@@ -27,6 +27,10 @@ struct AppSettings(Mutex<config::AppConfig>);
 /// the full snapshot every second.
 struct Paused(Arc<Mutex<bool>>);
 
+/// Mirror of the engine's Deathmatch mode flag, so a hotkey toggle reads the
+/// last requested state rather than a snapshot that may not have caught up.
+struct Deathmatch(Mutex<bool>);
+
 #[cfg(windows)]
 #[tauri::command]
 fn list_audio_sessions() -> Result<Vec<audio::AudioSessionInfo>, String> {
@@ -174,6 +178,23 @@ fn toggle_paused(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
+fn set_deathmatch(on: bool, engine: tauri::State<'_, Engine>, flag: tauri::State<'_, Deathmatch>) {
+    engine.0.set_deathmatch(on);
+    *flag.0.lock().unwrap() = on;
+}
+
+fn toggle_deathmatch(app: &tauri::AppHandle) {
+    // `try_state`: the hotkey can fire before setup has managed the state.
+    let (Some(engine), Some(flag)) = (app.try_state::<Engine>(), app.try_state::<Deathmatch>())
+    else {
+        return;
+    };
+    let mut on = flag.0.lock().unwrap();
+    *on = !*on;
+    engine.0.set_deathmatch(*on);
+}
+
+#[tauri::command]
 fn hotkey_capture_start(app_handle: tauri::AppHandle) -> Result<(), String> {
     hotkey::suspend(&app_handle)
 }
@@ -261,6 +282,7 @@ pub fn run() {
                     }
                     match hotkey::action_for(shortcut) {
                         Some(hotkey::Action::Pause) => toggle_paused(app),
+                        Some(hotkey::Action::Deathmatch) => toggle_deathmatch(app),
                         None => {}
                     }
                 })
@@ -317,6 +339,7 @@ pub fn run() {
             app.manage(ConfigPath(config_file));
             app.manage(AppSettings(Mutex::new(app_config)));
             app.manage(Paused(paused_flag));
+            app.manage(Deathmatch(Mutex::new(false)));
 
             let window = app.get_webview_window("main").expect("main window exists");
 
@@ -515,6 +538,7 @@ pub fn run() {
             config_path,
             open_config_dir,
             set_paused,
+            set_deathmatch,
             get_app_settings,
             save_config,
             overlay_edit_start,
