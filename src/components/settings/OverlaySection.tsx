@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { cn } from "cn";
-import { Check, Move, Power, PowerOff, RotateCcw, X } from "lucide-react";
+import { Check, Eye, Move, Power, PowerOff, RotateCcw, X } from "lucide-react";
 import { NumberField } from "@/components/settings/NumberField";
 import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function OverlaySection() {
 		>
 			<SettingRow
 				label="Position & size"
-				info="Drag and resize the overlay on your screen."
+				info="Drag and resize the overlay on your screen. Preview shows it for 5 seconds."
 				wide
 			>
 				{overlayEditing ? (
@@ -111,6 +111,16 @@ export function OverlaySection() {
 						>
 							<RotateCcw />
 							Reset
+						</Button>
+						<Button
+							variant="outline"
+							className={EDIT_BUTTON}
+							disabled={!o.enabled}
+							// The overlay page runs the 5 s countdown itself.
+							onClick={() => emit("overlay:preview-start")}
+						>
+							<Eye />
+							Preview
 						</Button>
 					</>
 				)}

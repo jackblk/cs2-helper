@@ -52,6 +52,9 @@ const GRACE_MS = 1500;
 // Reading shown in edit mode, so the user positions a realistic badge.
 const SAMPLE_S = 32.5;
 
+// Length of the main page's Preview, which counts down from SAMPLE_S.
+const PREVIEW_S = 5;
+
 const endEdit = (result: OverlayEditResult | null) =>
 	invoke("overlay_edit_end", { result }).catch(() => {});
 
@@ -62,9 +65,13 @@ export function Overlay() {
 	const [preview, setPreview] = useState(false);
 	const [state, setState] = useState<GameState | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
+	// Seconds left of the main page's timed preview.
+	const [previewLeft, setPreviewLeft] = useState<number | null>(null);
 
 	// performance.now() when the bomb was planted.
 	const plantedAt = useRef<number | null>(null);
+	// performance.now() when the timed preview ends.
+	const previewEnd = useRef<number | null>(null);
 	const prevBomb = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -83,6 +90,10 @@ export function Overlay() {
 				setSession(e.payload),
 			),
 			listen<boolean>("overlay:preview", (e) => setPreview(e.payload)),
+			// Pressing Preview again restarts it.
+			listen("overlay:preview-start", () => {
+				previewEnd.current = performance.now() + PREVIEW_S * 1000;
+			}),
 			listen<GsiUpdate>("gsi:update", (e) => setState(e.payload.state)),
 		];
 		return () => {
@@ -116,6 +127,17 @@ export function Overlay() {
 					setRemaining(Math.max(0, left));
 				}
 			}
+			if (previewEnd.current == null) {
+				setPreviewLeft(null);
+			} else {
+				const left = (previewEnd.current - performance.now()) / 1000;
+				if (left <= 0) {
+					previewEnd.current = null;
+					setPreviewLeft(null);
+				} else {
+					setPreviewLeft(left);
+				}
+			}
 			raf = requestAnimationFrame(tick);
 		};
 		raf = requestAnimationFrame(tick);
@@ -123,7 +145,22 @@ export function Overlay() {
 	}, [cfg.c4_timer_s, cfg.safety_margin_s]);
 
 	if (session) return <EditSurface session={session} />;
-	if (!preview && (remaining == null || !cfg.bomb_timer)) return null;
+
+	const live = remaining != null && cfg.bomb_timer;
+	// A live timer wins over the timed preview.
+	if (!live && previewLeft != null) {
+		return (
+			<BadgeFrame>
+				<TimerBadge
+					scale={cfg.scale}
+					color="green"
+					value={(SAMPLE_S - PREVIEW_S + previewLeft).toFixed(1)}
+					caption="preview"
+				/>
+			</BadgeFrame>
+		);
+	}
+	if (!preview && !live) return null;
 
 	const color =
 		remaining == null
@@ -131,7 +168,7 @@ export function Overlay() {
 			: defuseColor(state?.team ?? null, state?.defusekit ?? false, remaining);
 
 	return (
-		<div className="flex h-screen w-screen select-none items-center justify-center">
+		<BadgeFrame>
 			<TimerBadge
 				scale={cfg.scale}
 				color={color}
@@ -140,6 +177,14 @@ export function Overlay() {
 					color == null ? "bomb timer" : color === "red" ? "run" : "defuse"
 				}
 			/>
+		</BadgeFrame>
+	);
+}
+
+function BadgeFrame({ children }: { children: ReactNode }) {
+	return (
+		<div className="flex h-screen w-screen select-none items-center justify-center">
+			{children}
 		</div>
 	);
 }
