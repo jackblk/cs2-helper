@@ -86,6 +86,6 @@ describe("stepScale", () => {
 
 describe("overlaySize", () => {
 	it("scales the base size", () => {
-		expect(overlaySize(0.5)).toEqual({ width: 120, height: 48 });
+		expect(overlaySize(0.5)).toEqual({ width: 120, height: 64 });
 	});
 });

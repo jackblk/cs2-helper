@@ -35,12 +35,14 @@ start_minimized = false
 
 # In-game overlay.
 # enabled: show the overlay window. bomb_timer: show the bomb defuse timer.
+# volume_status: while the volume is lowered, show it and its top reason (e.g. FLASH 15%).
 # c4_timer_s: bomb fuse seconds (40 default).
 # safety_margin_s: subtract from remaining time before coloring (0 = pure math).
 # scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for top-center).
 [overlay]
 enabled = true
 bomb_timer = true
+volume_status = true
 c4_timer_s = 40.0
 safety_margin_s = 0.0
 scale = 1.00

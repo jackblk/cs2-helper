@@ -3,7 +3,9 @@ import type { Rect } from "@/lib/types";
 export type Size = { width: number; height: number };
 
 // Mirrors BASE_W / BASE_H in src-tauri/src/overlay.rs.
-export const OVERLAY_BASE: Size = { width: 240, height: 96 };
+export const OVERLAY_BASE: Size = { width: 240, height: 128 };
+// The volume status slot at the top of OVERLAY_BASE; the badge fills the rest.
+export const STATUS_SLOT_H = 32;
 // Mirrors `scale` in src-tauri/src/config/default.toml.
 export const DEFAULT_OVERLAY_SCALE = 1;
 

@@ -156,6 +156,23 @@ export function OverlaySection() {
 					}
 				/>
 			</SettingRow>
+			<SettingRow
+				toggle={
+					<Switch
+						checked={o.volume_status}
+						disabled={!o.enabled}
+						aria-label="Volume status enabled"
+						onCheckedChange={(v) =>
+							commit(
+								v ? "Volume status on" : "Volume status off",
+								withOverlay((x) => ({ ...x, volume_status: v })),
+							)
+						}
+					/>
+				}
+				label="Volume status"
+				info="While the volume is lowered, shows it and the top reason above the bomb timer, e.g. FLASH 15%."
+			/>
 		</SettingsSection>
 	);
 }

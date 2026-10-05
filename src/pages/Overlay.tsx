@@ -20,25 +20,31 @@ import {
 import { C4_FUSE_DEFAULT, type DefuseColor, defuseColor } from "@/lib/defuse";
 import {
 	clampToMonitor,
+	OVERLAY_BASE,
 	overlaySize,
 	placeToolbar,
 	SCALE_MAX,
 	SCALE_MIN,
+	STATUS_SLOT_H,
 	stepScale,
 	TOOLBAR_SIZE,
 } from "@/lib/overlay-edit";
 import type {
+	ActiveReduction,
 	AppConfig,
+	EngineSnapshot,
 	GameState,
 	GsiUpdate,
 	OverlayConfig,
 	OverlayEditResult,
 	OverlayEditSession,
 } from "@/lib/types";
+import { pct } from "@/lib/utils";
 
 const DEFAULT_OVERLAY: OverlayConfig = {
 	enabled: true,
 	bomb_timer: true,
+	volume_status: true,
 	c4_timer_s: C4_FUSE_DEFAULT,
 	safety_margin_s: 0,
 	pos_x: null,
@@ -55,6 +61,25 @@ const SAMPLE_S = 32.5;
 // Length of the main page's Preview, which counts down from SAMPLE_S.
 const PREVIEW_S = 5;
 
+// Volume status shown in edit mode and the Preview.
+const SAMPLE_STATUS: ActiveReduction = { kind: "flash", volume: 0.15 };
+
+const STATUS_LABELS: Record<string, string> = {
+	flash: "flash",
+	death: "death",
+	bomb: "bomb",
+	spectator: "spec",
+};
+
+// The reduction that sets the volume (the smallest wins), or null at 100%.
+function topReduction(snap: EngineSnapshot | null): ActiveReduction | null {
+	if (!snap || snap.paused || snap.target == null) return null;
+	return snap.active.reduce<ActiveReduction | null>(
+		(min, a) => (min == null || a.volume < min.volume ? a : min),
+		null,
+	);
+}
+
 const endEdit = (result: OverlayEditResult | null) =>
 	invoke("overlay_edit_end", { result }).catch(() => {});
 
@@ -64,6 +89,7 @@ export function Overlay() {
 	// Debug page toggle: show the idle placeholder even without a plant.
 	const [preview, setPreview] = useState(false);
 	const [state, setState] = useState<GameState | null>(null);
+	const [engine, setEngine] = useState<EngineSnapshot | null>(null);
 	const [remaining, setRemaining] = useState<number | null>(null);
 	// Seconds left of the main page's timed preview.
 	const [previewLeft, setPreviewLeft] = useState<number | null>(null);
@@ -84,6 +110,7 @@ export function Overlay() {
 			setSession,
 			() => {},
 		);
+		invoke<EngineSnapshot>("engine_status").then(setEngine, () => {});
 		const unlisteners = [
 			listen<OverlayConfig>("overlay:config", (e) => setCfg(e.payload)),
 			listen<OverlayEditSession | null>("overlay:edit", (e) =>
@@ -95,6 +122,7 @@ export function Overlay() {
 				previewEnd.current = performance.now() + PREVIEW_S * 1000;
 			}),
 			listen<GsiUpdate>("gsi:update", (e) => setState(e.payload.state)),
+			listen<EngineSnapshot>("engine:update", (e) => setEngine(e.payload)),
 		];
 		return () => {
 			for (const un of unlisteners) un.then((f) => f());
@@ -144,67 +172,106 @@ export function Overlay() {
 		return () => cancelAnimationFrame(raf);
 	}, [cfg.c4_timer_s, cfg.safety_margin_s]);
 
-	if (session) return <EditSurface session={session} />;
+	if (session) {
+		return <EditSurface session={session} statusOn={cfg.volume_status} />;
+	}
 
 	const live = remaining != null && cfg.bomb_timer;
 	// A live timer wins over the timed preview.
-	if (!live && previewLeft != null) {
-		return (
-			<BadgeFrame>
-				<TimerBadge
-					scale={cfg.scale}
-					color="green"
-					value={(SAMPLE_S - PREVIEW_S + previewLeft).toFixed(1)}
-					caption="preview"
-				/>
-			</BadgeFrame>
-		);
-	}
-	if (!preview && !live) return null;
+	const previewing = !live && previewLeft != null;
+	let status = cfg.volume_status ? topReduction(engine) : null;
+	if (previewing && cfg.volume_status) status ??= SAMPLE_STATUS;
 
-	const color =
-		remaining == null
-			? null
-			: defuseColor(state?.team ?? null, state?.defusekit ?? false, remaining);
-
-	return (
-		<BadgeFrame>
+	let badge: ReactNode = null;
+	if (previewing) {
+		badge = (
 			<TimerBadge
-				scale={cfg.scale}
+				color="green"
+				value={(SAMPLE_S - PREVIEW_S + previewLeft).toFixed(1)}
+				caption="preview"
+			/>
+		);
+	} else if (preview || live) {
+		const color =
+			remaining == null
+				? null
+				: defuseColor(
+						state?.team ?? null,
+						state?.defusekit ?? false,
+						remaining,
+					);
+		badge = (
+			<TimerBadge
 				color={color}
 				value={remaining == null ? "--.-" : remaining.toFixed(1)}
 				caption={
 					color == null ? "bomb timer" : color === "red" ? "run" : "defuse"
 				}
 			/>
-		</BadgeFrame>
+		);
+	}
+	if (!badge && !status) return null;
+
+	return (
+		<OverlayFrame
+			scale={cfg.scale}
+			status={status && <StatusPill reduction={status} />}
+			badge={badge}
+		/>
 	);
 }
 
-function BadgeFrame({ children }: { children: ReactNode }) {
+// Lays out OVERLAY_BASE in base px and scales the whole of it to the window
+// (or edit box), so the status slot and the badge keep their proportions.
+function OverlayFrame({
+	scale,
+	status,
+	badge,
+}: {
+	scale: number;
+	status: ReactNode;
+	badge: ReactNode;
+}) {
 	return (
-		<div className="flex h-screen w-screen select-none items-center justify-center">
-			{children}
+		<div
+			style={{
+				width: OVERLAY_BASE.width,
+				height: OVERLAY_BASE.height,
+				transform: `scale(${scale})`,
+				transformOrigin: "top left",
+			}}
+			className="flex select-none flex-col"
+		>
+			<div
+				style={{ height: STATUS_SLOT_H }}
+				className="flex items-end justify-center"
+			>
+				{status}
+			</div>
+			<div className="flex flex-1 items-center justify-center">{badge}</div>
+		</div>
+	);
+}
+
+function StatusPill({ reduction }: { reduction: ActiveReduction }) {
+	return (
+		<div className="rounded-full bg-black/70 px-3 py-1 font-mono text-xs font-semibold uppercase tabular-nums tracking-widest text-amber-400 shadow-lg backdrop-blur-sm">
+			{STATUS_LABELS[reduction.kind] ?? reduction.kind} {pct(reduction.volume)}
 		</div>
 	);
 }
 
 function TimerBadge({
-	scale,
 	color,
 	value,
 	caption,
 }: {
-	scale: number;
 	color: DefuseColor | null;
 	value: string;
 	caption: string;
 }) {
 	return (
 		<div
-			// The window (or edit box) is sized by `scale`; scale the badge too
-			// so its text grows with it.
-			style={{ transform: `scale(${scale})` }}
 			className={cn(
 				"rounded-lg bg-black/70 px-4 py-2 text-center font-mono tabular-nums tracking-tight shadow-lg backdrop-blur-sm",
 				color == null
@@ -224,7 +291,13 @@ function TimerBadge({
 
 // The window covers its monitor during an edit; client coordinates are
 // logical px relative to the monitor's origin.
-function EditSurface({ session }: { session: OverlayEditSession }) {
+function EditSurface({
+	session,
+	statusOn,
+}: {
+	session: OverlayEditSession;
+	statusOn: boolean;
+}) {
 	const { monitor } = session;
 	const [scale, setScale] = useState(session.scale);
 	const [origin, setOrigin] = useState({ x: session.x, y: session.y });
@@ -286,7 +359,8 @@ function EditSurface({ session }: { session: OverlayEditSession }) {
 				onPointerMove={onPointerMove}
 				onPointerUp={onPointerUp}
 				onPointerCancel={onPointerUp}
-				className="absolute flex cursor-move items-center justify-center rounded-lg border-2 border-dashed border-white/70"
+				// An outline, unlike a border, leaves the frame the full box.
+				className="absolute cursor-move rounded-lg outline-2 -outline-offset-2 outline-dashed outline-white/70"
 				style={{
 					left: box.x - monitor.x,
 					top: box.y - monitor.y,
@@ -294,11 +368,16 @@ function EditSurface({ session }: { session: OverlayEditSession }) {
 					height: box.height,
 				}}
 			>
-				<TimerBadge
+				<OverlayFrame
 					scale={scale}
-					color="green"
-					value={SAMPLE_S.toFixed(1)}
-					caption={`drag to move · ${scale.toFixed(2)}x`}
+					status={statusOn && <StatusPill reduction={SAMPLE_STATUS} />}
+					badge={
+						<TimerBadge
+							color="green"
+							value={SAMPLE_S.toFixed(1)}
+							caption={`drag to move · ${scale.toFixed(2)}x`}
+						/>
+					}
 				/>
 			</div>
 			<EditToolbar

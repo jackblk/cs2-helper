@@ -13,9 +13,9 @@ use tauri::{
 use crate::config::OverlayConfig;
 
 pub const OVERLAY_LABEL: &str = "overlay";
-/// Logical size at scale 1.0; the badge fills it.
+/// Logical size at scale 1.0: the volume status slot (32) above the badge (96).
 const BASE_W: f64 = 240.0;
-const BASE_H: f64 = 96.0;
+const BASE_H: f64 = 128.0;
 
 fn logical_size(scale: f32) -> (f64, f64) {
     let s = scale as f64;

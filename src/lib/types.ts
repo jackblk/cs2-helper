@@ -13,6 +13,7 @@ export type Config = {
 export type OverlayConfig = {
 	enabled: boolean;
 	bomb_timer: boolean;
+	volume_status: boolean;
 	c4_timer_s: number;
 	safety_margin_s: number;
 	pos_x: number | null;

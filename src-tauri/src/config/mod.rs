@@ -52,6 +52,7 @@ pub struct TimedEventCfg {
 pub struct OverlayConfig {
     pub enabled: bool,
     pub bomb_timer: bool,
+    pub volume_status: bool,
     pub c4_timer_s: f32,
     pub safety_margin_s: f32,
     pub pos_x: Option<f64>,
@@ -157,6 +158,7 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
     let overlay = &mut doc["overlay"];
     overlay["enabled"] = value(o.enabled);
     overlay["bomb_timer"] = value(o.bomb_timer);
+    overlay["volume_status"] = value(o.volume_status);
     overlay["c4_timer_s"] = float(o.c4_timer_s);
     overlay["safety_margin_s"] = float(o.safety_margin_s);
     overlay["scale"] = float(o.scale);
@@ -377,6 +379,7 @@ fn apply_overlay(table: &toml::Table, out: &mut OverlayConfig, warnings: &mut Ve
         match key.as_str() {
             "enabled" => set_bool(value, "overlay", key, &mut out.enabled, warnings),
             "bomb_timer" => set_bool(value, "overlay", key, &mut out.bomb_timer, warnings),
+            "volume_status" => set_bool(value, "overlay", key, &mut out.volume_status, warnings),
             "c4_timer_s" => set_pos_float(value, key, &mut out.c4_timer_s, warnings),
             "safety_margin_s" => set_nonneg_float(value, key, &mut out.safety_margin_s, warnings),
             "scale" => set_scale(value, key, &mut out.scale, warnings),
@@ -528,6 +531,7 @@ mod tests {
         let o = OverlayConfig::default();
         assert!(o.enabled);
         assert!(o.bomb_timer);
+        assert!(o.volume_status);
         assert_eq!(o.c4_timer_s, 40.0);
         assert_eq!(o.safety_margin_s, 0.0);
         assert_eq!(o.scale, 1.0);
@@ -537,6 +541,7 @@ mod tests {
         let mut a = AppConfig::default();
         a.overlay.enabled = false;
         a.overlay.bomb_timer = false;
+        a.overlay.volume_status = false;
         a.overlay.scale = 1.5;
         a.overlay.pos_x = Some(100.0);
         a.overlay.pos_y = Some(40.0);
