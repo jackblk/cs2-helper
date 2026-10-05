@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,7 +75,10 @@ export function GsiDebug() {
 			</CardHeader>
 			<CardContent className="space-y-4">
 				<div className="flex flex-wrap items-center gap-2">
-					<Button onClick={installCfg}>Install GSI config</Button>
+					<Button onClick={installCfg}>
+						<Download />
+						Install GSI config
+					</Button>
 					<span className="font-mono text-sm text-muted-foreground">
 						{count} payload(s), last:{" "}
 						{formatAge(status?.last_payload_age_ms ?? null)}

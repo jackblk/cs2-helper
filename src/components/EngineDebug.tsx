@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,15 +100,18 @@ export function EngineDebug() {
 						variant={snap?.paused ? "default" : "secondary"}
 						onClick={() => invoke("set_paused", { paused: !snap?.paused })}
 					>
+						{snap?.paused ? <Play /> : <Pause />}
 						{snap?.paused ? "Resume" : "Pause"}
 					</Button>
 					<Button onClick={() => runConfigCommand("reload_config")}>
+						<RefreshCw />
 						Reload config
 					</Button>
 					<Button
 						variant="secondary"
 						onClick={() => runConfigCommand("reset_config")}
 					>
+						<RotateCcw />
 						Reset to defaults
 					</Button>
 				</div>

@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppSection } from "@/components/settings/AppSection";
 import { AudioSection } from "@/components/settings/AudioSection";
@@ -34,6 +35,7 @@ export function MainPage() {
 			<div className="flex items-center gap-3 text-sm text-destructive">
 				<span>Couldn't load settings: {loadError}</span>
 				<Button variant="outline" size="sm" onClick={reload}>
+					<RefreshCw />
 					Retry
 				</Button>
 			</div>

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { Keyboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toastError } from "@/lib/toast";
@@ -82,6 +83,7 @@ export function HotkeyRecorder({
 			// Fixed width: the label changes while recording.
 			className="w-48 font-mono"
 		>
+			<Keyboard />
 			{recording ? "Press a key… (Esc)" : value}
 		</Button>
 	);

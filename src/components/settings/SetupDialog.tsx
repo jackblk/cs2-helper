@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Circle, CircleCheck } from "lucide-react";
+import { Circle, CircleCheck, Download, RefreshCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,10 +60,11 @@ export function SetupDialog({
 						<div className="flex flex-wrap gap-2">
 							<Button
 								variant={installed ? "outline" : "default"}
-								className="w-24"
+								className="w-28"
 								disabled={!found}
 								onClick={install}
 							>
+								{installed ? <RefreshCw /> : <Download />}
 								{installed ? "Reinstall" : "Install"}
 							</Button>
 							<Button
@@ -71,6 +72,7 @@ export function SetupDialog({
 								disabled={!installed}
 								onClick={remove}
 							>
+								<Trash2 />
 								Remove
 							</Button>
 						</div>

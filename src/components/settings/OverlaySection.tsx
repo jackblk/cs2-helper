@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { cn } from "cn";
+import { Check, Move, Power, PowerOff, RotateCcw, X } from "lucide-react";
 import { NumberField } from "@/components/settings/NumberField";
 import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,9 @@ import { withOverlay } from "@/lib/settings";
 import { toastError } from "@/lib/toast";
 
 // Same width in both states so Edit/Done never shifts the row.
-const EDIT_BUTTON = "w-28";
+const EDIT_BUTTON = "w-32";
 // Fits "Disable", so Enable/Disable never resizes the header.
-const ENABLE_BUTTON = "w-18";
+const ENABLE_BUTTON = "w-22";
 
 export function OverlaySection() {
 	const { settings, commit, overlayEditing } = useLoadedSettings();
@@ -56,6 +57,7 @@ export function OverlaySection() {
 						)
 					}
 				>
+					{o.enabled ? <PowerOff /> : <Power />}
 					{o.enabled ? "Disable" : "Enable"}
 				</Button>
 			}
@@ -68,6 +70,7 @@ export function OverlaySection() {
 				{overlayEditing ? (
 					<>
 						<Button className={EDIT_BUTTON} onClick={finishEdit}>
+							<Check />
 							Done
 						</Button>
 						<Button
@@ -75,6 +78,7 @@ export function OverlaySection() {
 							className={EDIT_BUTTON}
 							onClick={cancelEdit}
 						>
+							<X />
 							Cancel
 						</Button>
 					</>
@@ -86,6 +90,7 @@ export function OverlaySection() {
 							disabled={!o.enabled}
 							onClick={startEdit}
 						>
+							<Move />
 							Edit overlay
 						</Button>
 						<Button
@@ -104,6 +109,7 @@ export function OverlaySection() {
 								)
 							}
 						>
+							<RotateCcw />
 							Reset
 						</Button>
 					</>

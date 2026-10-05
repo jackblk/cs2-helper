@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
+import {
+	MousePointerClick,
+	RefreshCw,
+	SlidersHorizontal,
+	Volume2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { EngineDebug } from "@/components/EngineDebug";
 import { GsiDebug } from "@/components/GsiDebug";
@@ -159,6 +165,7 @@ export function DebugPage() {
 					</div>
 					<div className="flex flex-wrap gap-2">
 						<Button disabled={busy} onClick={setProcessVolume}>
+							<SlidersHorizontal />
 							Set volume
 						</Button>
 						<Button
@@ -166,9 +173,11 @@ export function DebugPage() {
 							disabled={busy}
 							onClick={getProcessVolume}
 						>
+							<Volume2 />
 							Get volume
 						</Button>
 						<Button variant="secondary" disabled={busy} onClick={refresh}>
+							<RefreshCw />
 							Refresh sessions
 						</Button>
 					</div>
@@ -222,6 +231,7 @@ export function DebugPage() {
 											size="sm"
 											onClick={() => setTarget(s.process_name)}
 										>
+											<MousePointerClick />
 											select
 										</Button>
 									</TableCell>

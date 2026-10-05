@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ConfigWarningsToast } from "@/components/ConfigWarningsToast";
@@ -76,7 +77,10 @@ export function Layout() {
 							<div className="flex items-center gap-2">
 								{onDebug ? (
 									<Button asChild variant="ghost" size="sm">
-										<Link to="/">← Back</Link>
+										<Link to="/">
+											<ArrowLeft />
+											Back
+										</Link>
 									</Button>
 								) : (
 									<UndoRedo />

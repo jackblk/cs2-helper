@@ -1,4 +1,4 @@
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLoadedSettings } from "@/hooks/use-settings";
 import { openFolder } from "@/lib/folders";
@@ -8,6 +8,7 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 	return (
 		<div className="flex items-center gap-2">
 			<Button variant="outline" onClick={resetDefaults}>
+				<RotateCcw />
 				Reset to defaults
 			</Button>
 			<div className="ml-auto flex items-center gap-2">
