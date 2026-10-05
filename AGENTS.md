@@ -34,9 +34,10 @@ Run the frontend typechecker with `pnpm tsc --noEmit`.
 ```sh
 pnpm bump 0.3.4          # set the version in package.json, Cargo.toml and Cargo.lock
 pnpm version:check       # fail if they disagree
+pnpm release             # tag the current version and push the tag, after a y/N prompt
 ```
 
-Releases are cut by pushing a tag equal to the version (e.g. `0.3.4`). The release workflow runs `node scripts/version.mjs check <tag>` first and fails on a mismatch.
+Releases are cut by pushing a tag equal to the version (e.g. `0.3.4`). `pnpm release` (`scripts/release.mjs`) does that: it runs the version check, refuses a dirty tree, unpushed commits or a tag that already exists on GitHub, shows the latest GitHub tag and asks before tagging. The release workflow runs `node scripts/version.mjs check <tag>` first and fails on a mismatch.
 
 Guidelines:
 
