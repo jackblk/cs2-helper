@@ -22,6 +22,7 @@ pnpm tauri dev            # run the app (Vite + Rust, hot reload) — primary de
 pnpm build               # tsc typecheck + vite build (frontend)
 pnpm format              # biome format --write
 cargo check --manifest-path src-tauri/Cargo.toml   # typecheck Rust without launching
+pnpm screenshot:windows  # PNG of the running app's main window -> site/public/screenshot.png (see scripts/screenshot.ps1)
 ```
 
 Run the frontend typechecker with `pnpm tsc --noEmit`.

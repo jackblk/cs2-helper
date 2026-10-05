@@ -12,6 +12,7 @@
 		"test": "vitest run",
 		"bump": "node scripts/version.mjs bump",
 		"version:check": "node scripts/version.mjs check",
+		"screenshot:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/screenshot.ps1",
 		"site:dev": "pnpm --filter site dev",
 		"site:build": "pnpm --filter site build"
 	},
