@@ -58,7 +58,7 @@ fn vi(text: Text) -> &'static str {
         Text::RunOnStartup => "Chạy khi khởi động",
         Text::ReloadConfig => "Tải lại cấu hình",
         Text::OpenConfigFolder => "Mở thư mục cấu hình",
-        Text::CancelOverlayEdit => "Hủy chỉnh lớp phủ",
+        Text::CancelOverlayEdit => "Hủy chỉnh overlay",
         Text::ShowWindow => "Hiện cửa sổ",
         Text::Exit => "Thoát",
         Text::StartedInTray => {

@@ -84,21 +84,21 @@ export const vi: typeof en = {
 		unitMs: "ms",
 	},
 	overlay: {
-		title: "Lớp phủ",
+		title: "Overlay",
 		description:
 			"Hiển thị đè lên CS2. Cần chế độ cửa sổ không viền, không dùng toàn màn hình.",
 		enable: "Bật",
 		disable: "Tắt",
 		positionSize: "Vị trí & kích thước",
 		positionInfo:
-			"Kéo và đổi kích thước lớp phủ trên màn hình. Xem thử sẽ hiện nó trong 5 giây.",
-		positionLabel: "Vị trí và kích thước lớp phủ",
+			"Kéo và đổi kích thước overlay trên màn hình. Xem thử sẽ hiện nó trong 5 giây.",
+		positionLabel: "Vị trí và kích thước overlay",
 		done: "Xong",
 		cancel: "Hủy",
 		edit: "Chỉnh vị trí",
-		editFailed: "Không chỉnh được lớp phủ",
+		editFailed: "Không chỉnh được overlay",
 		reset: "Đặt lại",
-		resetLabel: "Đặt lại lớp phủ",
+		resetLabel: "Đặt lại overlay",
 		preview: "Xem thử",
 		bombTimer: "Đồng hồ bom",
 		bombTimerInfo:
