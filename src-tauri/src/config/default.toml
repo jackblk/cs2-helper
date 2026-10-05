@@ -34,9 +34,11 @@ volume = 0.0
 # App behavior.
 # start_with_windows: launch on login via a Startup-folder shortcut (no registry).
 # start_minimized: start hidden in the tray instead of showing the window.
+# language: UI language code ("en" or "vi").
 [app]
 start_with_windows = false
 start_minimized = false
+language = "en"
 
 # In-game overlay.
 # enabled: show the overlay window. bomb_timer: show the bomb defuse timer.

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { SettingsSection } from "@/components/settings/section";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -5,29 +6,32 @@ import { useLoadedSettings } from "@/hooks/use-settings";
 import { withApp } from "@/lib/settings";
 
 export function AppSection() {
+	const { t } = useTranslation();
 	const { settings, commit } = useLoadedSettings();
 	const app = settings.app;
+	const toggled = (v: boolean, name: string) =>
+		t(v ? "common.on" : "common.off", { name });
 	return (
-		<SettingsSection title="App">
+		<SettingsSection title={t("app.title")}>
 			<div className="flex flex-wrap items-center gap-x-8 gap-y-2">
 				<CheckboxField
 					id="startup"
-					label="Run on startup"
+					label={t("app.runOnStartup")}
 					checked={app.start_with_windows}
 					onChange={(v) =>
 						commit(
-							v ? "Run on startup on" : "Run on startup off",
+							toggled(v, t("app.runOnStartup")),
 							withApp((a) => ({ ...a, start_with_windows: v })),
 						)
 					}
 				/>
 				<CheckboxField
 					id="start-minimized"
-					label="Start minimized to tray"
+					label={t("app.startMinimized")}
 					checked={app.start_minimized}
 					onChange={(v) =>
 						commit(
-							v ? "Start minimized on" : "Start minimized off",
+							toggled(v, t("app.startMinimized")),
 							withApp((a) => ({ ...a, start_minimized: v })),
 						)
 					}

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "cn";
 import { Check, Pause, Play, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,12 +14,7 @@ import { isFresh } from "@/hooks/use-gsi-status";
 import type { EngineSnapshot, GsiStatus } from "@/lib/types";
 import { pct } from "@/lib/utils";
 
-const EVENT_CHIPS = [
-	{ kind: "flash", label: "Flash" },
-	{ kind: "death", label: "Death" },
-	{ kind: "bomb", label: "Bomb" },
-	{ kind: "spectator", label: "Spec" },
-] as const;
+const EVENT_CHIPS = ["flash", "death", "bomb", "spectator"] as const;
 
 // Every slot has a fixed width so state changes never move or wrap anything.
 export function StatusBar({
@@ -30,6 +26,7 @@ export function StatusBar({
 	gsi: GsiStatus;
 	onOpenSetup: () => void;
 }) {
+	const { t } = useTranslation();
 	const paused = snap.paused;
 	const fresh = isFresh(gsi);
 	const audio = paused || snap.target == null ? 1 : snap.target;
@@ -41,23 +38,28 @@ export function StatusBar({
 					variant={!paused && fresh ? "secondary" : "outline"}
 					className="w-28 justify-center"
 				>
-					{paused ? "Paused" : fresh ? "Running" : "Waiting for CS2"}
+					{paused
+						? t("status.paused")
+						: fresh
+							? t("status.running")
+							: t("status.waiting")}
 				</Badge>
 				<span
 					className={cn(
-						"w-20 shrink-0 text-sm tabular-nums",
+						"w-28 shrink-0 whitespace-nowrap text-sm tabular-nums",
 						audio < 1 ? "text-destructive" : "text-muted-foreground",
 					)}
 				>
-					Audio {pct(audio)}
+					{t("status.audio", { pct: pct(audio) })}
 				</span>
 				<div className="flex items-center gap-1">
-					{EVENT_CHIPS.map((chip) => {
+					{EVENT_CHIPS.map((kind) => {
+						const label = t(`status.chips.${kind}`);
 						const active = paused
 							? undefined
-							: snap.active.find((a) => a.kind === chip.kind);
+							: snap.active.find((a) => a.kind === kind);
 						return (
-							<Tooltip key={chip.kind}>
+							<Tooltip key={kind}>
 								<TooltipTrigger asChild>
 									<Badge
 										variant={active ? "destructive" : "outline"}
@@ -66,13 +68,16 @@ export function StatusBar({
 											!active && "text-muted-foreground",
 										)}
 									>
-										{chip.label}
+										{label}
 									</Badge>
 								</TooltipTrigger>
 								<TooltipContent>
 									{active
-										? `${chip.label}: ${pct(active.volume)}`
-										: `${chip.label}: inactive`}
+										? t("status.chipActive", {
+												label,
+												pct: pct(active.volume),
+											})
+										: t("status.chipInactive", { label })}
 								</TooltipContent>
 							</Tooltip>
 						);
@@ -82,7 +87,7 @@ export function StatusBar({
 					<Button
 						variant={gsi.cfg_installed ? "ghost" : "outline"}
 						className={cn(
-							"w-20",
+							"w-24",
 							!gsi.cfg_installed && "border-amber-500/60 text-amber-500",
 						)}
 						onClick={onOpenSetup}
@@ -90,12 +95,12 @@ export function StatusBar({
 						{gsi.cfg_installed ? (
 							<>
 								<Check className="text-emerald-500" />
-								GSI
+								{t("status.gsi")}
 							</>
 						) : (
 							<>
 								<TriangleAlert />
-								Set up
+								{t("status.setUp")}
 							</>
 						)}
 					</Button>
@@ -105,7 +110,7 @@ export function StatusBar({
 						onClick={() => invoke("set_paused", { paused: !paused })}
 					>
 						{paused ? <Play /> : <Pause />}
-						{paused ? "Resume" : "Pause"}
+						{paused ? t("status.resume") : t("status.pause")}
 					</Button>
 				</div>
 			</CardContent>

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { cn } from "cn";
 import { Info, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { pct } from "@/lib/utils";
 // Manual mode: on/off is the engine's runtime state (off at every launch),
 // the volume and hotkey are saved settings.
 export function DeathmatchBar({ on }: { on: boolean }) {
+	const { t } = useTranslation();
 	const { settings, commit } = useLoadedSettings();
 	const saved = settings.config.deathmatch.volume;
 	const hotkey = settings.app.hotkeys.deathmatch;
@@ -31,7 +33,7 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 		try {
 			await invoke("set_deathmatch", { on: !on });
 		} catch (e) {
-			toastError("Couldn't switch Deathmatch mode", e);
+			toastError(t("deathmatch.switchFailed"), e);
 		}
 	};
 
@@ -39,23 +41,21 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 		<Card size="sm">
 			<CardContent className="flex items-center gap-3">
 				<div className="flex w-40 shrink-0 items-center gap-1.5">
-					<span className="text-sm font-medium">Deathmatch mode</span>
+					<span className="text-sm font-medium">{t("deathmatch.title")}</span>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label="Deathmatch mode info"
+								aria-label={t("common.infoAria", {
+									label: t("deathmatch.title"),
+								})}
 								className="text-muted-foreground"
 							>
 								<Info />
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>
-							While on, holds CS2 at this volume in any game mode. Switch it on
-							when you join a deathmatch and off when you leave. It starts off
-							every launch.
-						</TooltipContent>
+						<TooltipContent>{t("deathmatch.info")}</TooltipContent>
 					</Tooltip>
 				</div>
 				<Slider
@@ -63,11 +63,11 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 					min={0}
 					max={100}
 					step={5}
-					aria-label="Deathmatch mode volume"
+					aria-label={t("deathmatch.volumeAria")}
 					onValueChange={([v]) => setVolume(v / 100)}
 					onValueCommit={([v]) =>
 						commit(
-							"Deathmatch volume",
+							t("deathmatch.volumeLabel"),
 							withConfig((c) => ({ ...c, deathmatch: { volume: v / 100 } })),
 						)
 					}
@@ -80,7 +80,7 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 					disabled={false}
 					onChange={(key) =>
 						commit(
-							"Deathmatch hotkey",
+							t("deathmatch.hotkeyLabel"),
 							withApp((a) => ({
 								...a,
 								hotkeys: {
@@ -101,7 +101,7 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 					onClick={toggle}
 				>
 					{on ? <Square /> : <Play />}
-					{on ? "Stop" : "Start"}
+					{on ? t("deathmatch.stop") : t("deathmatch.start")}
 				</Button>
 			</CardContent>
 		</Card>

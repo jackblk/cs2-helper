@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Circle, CircleCheck, Download, RefreshCw, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,15 +26,16 @@ export function SetupDialog({
 	gsi: GsiStatus;
 	onChanged: () => void;
 }) {
+	const { t } = useTranslation();
 	const installed = gsi.cfg_installed;
 	const found = gsi.cfg_path != null;
 
 	const install = async () => {
 		try {
 			await invoke("install_gsi_cfg");
-			toast.success("Installed GSI config. Restart CS2 to take effect");
+			toast.success(t("setup.installed"));
 		} catch (e) {
-			toastError("Install failed", e);
+			toastError(t("setup.installFailed"), e);
 		}
 		onChanged();
 	};
@@ -41,9 +43,9 @@ export function SetupDialog({
 	const remove = async () => {
 		try {
 			await invoke("uninstall_gsi_cfg");
-			toast.success("GSI config removed. Restart CS2 to stop it sending data");
+			toast.success(t("setup.removed"));
 		} catch (e) {
-			toastError("Remove failed", e);
+			toastError(t("setup.removeFailed"), e);
 		}
 		onChanged();
 	};
@@ -52,11 +54,11 @@ export function SetupDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Setup</DialogTitle>
-					<DialogDescription>Connect CS2 Helper to CS2.</DialogDescription>
+					<DialogTitle>{t("setup.title")}</DialogTitle>
+					<DialogDescription>{t("setup.description")}</DialogDescription>
 				</DialogHeader>
 				<div className="space-y-5">
-					<SetupStep ok={installed} title="1. GSI config installed">
+					<SetupStep ok={installed} title={t("setup.step1")}>
 						<div className="flex flex-wrap gap-2">
 							<Button
 								variant={installed ? "outline" : "default"}
@@ -65,7 +67,7 @@ export function SetupDialog({
 								onClick={install}
 							>
 								{installed ? <RefreshCw /> : <Download />}
-								{installed ? "Reinstall" : "Install"}
+								{installed ? t("setup.reinstall") : t("setup.install")}
 							</Button>
 							<Button
 								variant="destructive"
@@ -73,18 +75,18 @@ export function SetupDialog({
 								onClick={remove}
 							>
 								<Trash2 />
-								Remove
+								{t("setup.remove")}
 							</Button>
 						</div>
 						{!found && (
 							<p className="text-sm text-muted-foreground">
-								CS2 installation not found. Install CS2, then try again.
+								{t("setup.notFound")}
 							</p>
 						)}
 					</SetupStep>
-					<SetupStep ok={isFresh(gsi)} title="2. Receiving data from CS2">
+					<SetupStep ok={isFresh(gsi)} title={t("setup.step2")}>
 						<p className="text-sm text-muted-foreground">
-							Restart CS2 if it is already running.
+							{t("setup.restartHint")}
 						</p>
 					</SetupStep>
 				</div>

@@ -10,6 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,
@@ -17,6 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import i18n from "@/i18n";
 import { C4_FUSE_DEFAULT, type DefuseColor, defuseColor } from "@/lib/defuse";
 import {
 	clampToMonitor,
@@ -64,13 +66,15 @@ const PREVIEW_S = 5;
 // Volume status shown in edit mode and the Preview.
 const SAMPLE_STATUS: ActiveReduction = { kind: "flash", volume: 0.15 };
 
-const STATUS_LABELS: Record<string, string> = {
-	flash: "flash",
-	death: "death",
-	bomb: "bomb",
-	spectator: "spec",
-	deathmatch: "deathmatch mode",
-};
+const STATUS_KINDS = [
+	"flash",
+	"death",
+	"bomb",
+	"spectator",
+	"deathmatch",
+] as const;
+const isStatusKind = (k: string): k is (typeof STATUS_KINDS)[number] =>
+	(STATUS_KINDS as readonly string[]).includes(k);
 
 // The reduction that sets the volume (the smallest wins), or null at 100%.
 function topReduction(snap: EngineSnapshot | null): ActiveReduction | null {
@@ -85,6 +89,7 @@ const endEdit = (result: OverlayEditResult | null) =>
 	invoke("overlay_edit_end", { result }).catch(() => {});
 
 export function Overlay() {
+	const { t } = useTranslation();
 	const [cfg, setCfg] = useState<OverlayConfig>(DEFAULT_OVERLAY);
 	const [session, setSession] = useState<OverlayEditSession | null>(null);
 	// Debug page toggle: show the idle placeholder even without a plant.
@@ -103,7 +108,10 @@ export function Overlay() {
 
 	useEffect(() => {
 		invoke<AppConfig>("get_app_settings").then(
-			(a) => setCfg(a.overlay),
+			(a) => {
+				setCfg(a.overlay);
+				void i18n.changeLanguage(a.language);
+			},
 			() => {},
 		);
 		// A window created for the edit loads after `overlay:edit` fired.
@@ -124,6 +132,10 @@ export function Overlay() {
 			}),
 			listen<GsiUpdate>("gsi:update", (e) => setState(e.payload.state)),
 			listen<EngineSnapshot>("engine:update", (e) => setEngine(e.payload)),
+			// Sent by the main window when the saved language changes.
+			listen<string>("app:language", (e) => {
+				void i18n.changeLanguage(e.payload);
+			}),
 		];
 		return () => {
 			for (const un of unlisteners) un.then((f) => f());
@@ -189,7 +201,7 @@ export function Overlay() {
 			<TimerBadge
 				color="green"
 				value={(SAMPLE_S - PREVIEW_S + previewLeft).toFixed(1)}
-				caption="preview"
+				caption={t("overlayPage.preview")}
 			/>
 		);
 	} else if (preview || live) {
@@ -206,7 +218,11 @@ export function Overlay() {
 				color={color}
 				value={remaining == null ? "--.-" : remaining.toFixed(1)}
 				caption={
-					color == null ? "bomb timer" : color === "red" ? "run" : "defuse"
+					color == null
+						? t("overlayPage.bombTimer")
+						: color === "red"
+							? t("overlayPage.run")
+							: t("overlayPage.defuse")
 				}
 			/>
 		);
@@ -255,9 +271,12 @@ function OverlayFrame({
 }
 
 function StatusPill({ reduction }: { reduction: ActiveReduction }) {
+	const { t } = useTranslation();
+	const { kind } = reduction;
+	const label = isStatusKind(kind) ? t(`overlayPage.status.${kind}`) : kind;
 	return (
 		<div className="rounded-full bg-black/70 px-3 py-1 font-mono text-xs font-semibold uppercase tabular-nums tracking-widest text-amber-400 shadow-lg backdrop-blur-sm">
-			{STATUS_LABELS[reduction.kind] ?? reduction.kind} {pct(reduction.volume)}
+			{label} {pct(reduction.volume)}
 		</div>
 	);
 }
@@ -299,6 +318,7 @@ function EditSurface({
 	session: OverlayEditSession;
 	statusOn: boolean;
 }) {
+	const { t } = useTranslation();
 	const { monitor } = session;
 	const [scale, setScale] = useState(session.scale);
 	const [origin, setOrigin] = useState({ x: session.x, y: session.y });
@@ -376,7 +396,9 @@ function EditSurface({
 						<TimerBadge
 							color="green"
 							value={SAMPLE_S.toFixed(1)}
-							caption={`drag to move · ${scale.toFixed(2)}x`}
+							caption={t("overlayPage.dragToMove", {
+								scale: scale.toFixed(2),
+							})}
 						/>
 					}
 				/>
@@ -411,6 +433,7 @@ function EditToolbar({
 	onLarger?: () => void;
 	onSave: () => void;
 }) {
+	const { t } = useTranslation();
 	return (
 		// The overlay renders outside Layout, so it needs its own provider.
 		<TooltipProvider>
@@ -423,20 +446,20 @@ function EditToolbar({
 				}}
 			>
 				<ToolbarButton
-					label="Cancel (Esc)"
+					label={t("overlayPage.cancel")}
 					onClick={onCancel}
 					className="text-red-500 hover:bg-red-500/15 hover:text-red-500"
 				>
 					<X />
 				</ToolbarButton>
-				<ToolbarButton label="Smaller" onClick={onSmaller}>
+				<ToolbarButton label={t("overlayPage.smaller")} onClick={onSmaller}>
 					<Minus />
 				</ToolbarButton>
-				<ToolbarButton label="Larger" onClick={onLarger}>
+				<ToolbarButton label={t("overlayPage.larger")} onClick={onLarger}>
 					<Plus />
 				</ToolbarButton>
 				<ToolbarButton
-					label="Save"
+					label={t("overlayPage.save")}
 					onClick={onSave}
 					className="text-emerald-400 hover:bg-emerald-400/15 hover:text-emerald-400"
 				>

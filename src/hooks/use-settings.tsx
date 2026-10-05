@@ -11,6 +11,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { withOverlay } from "@/lib/settings";
 import { createSettingsStore, type StoreNotice } from "@/lib/settings-store";
 import { toastError } from "@/lib/toast";
@@ -42,14 +43,24 @@ type SettingsContextValue = {
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 function showNotice(n: StoreNotice) {
-	if (n.kind === "failed") return toastError(n.title, n.error);
+	const { t } = i18n;
+	switch (n.kind) {
+		case "failed":
+			return toastError(n.title, n.error);
+		case "save-failed":
+			return toastError(t("notice.saveFailed"), n.error);
+		case "undo-failed":
+			return toastError(t("notice.undoFailed"), n.error);
+		case "redo-failed":
+			return toastError(t("notice.redoFailed"), n.error);
+	}
 	const text =
 		n.kind === "saved"
-			? `Saved: ${n.label}`
+			? t("notice.saved", { label: n.label })
 			: n.kind === "undone"
-				? `Undone: ${n.label}`
+				? t("notice.undone", { label: n.label })
 				: n.kind === "redone"
-					? `Redone: ${n.label}`
+					? t("notice.redone", { label: n.label })
 					: n.label;
 	// One toast updated in place, so a burst of edits never stacks up.
 	toast.success(text, { id: SAVE_TOAST_ID });
@@ -97,7 +108,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 				const r = e.payload;
 				if (!r) return;
 				void store.commit(
-					"Overlay position and size",
+					i18n.t("overlay.positionLabel"),
 					withOverlay((o) => ({
 						...o,
 						pos_x: r.x,
@@ -123,10 +134,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 			reload: () => void load(),
 			commit: (label, update) => void store.commit(label, update),
 			resetDefaults: () =>
-				void store.run("Reset to defaults", "Reset failed", async () => {
-					const { config, app } = await invoke<ConfigPayload>("reset_config");
-					return { config, app };
-				}),
+				void store.run(
+					i18n.t("footer.resetDefaults"),
+					i18n.t("notice.resetFailed"),
+					async () => {
+						const { config, app } = await invoke<ConfigPayload>("reset_config");
+						return { config, app };
+					},
+				),
 			adoptExternal: (s) => store.replace(s),
 			undo: () => void store.undo(),
 			redo: () => void store.redo(),

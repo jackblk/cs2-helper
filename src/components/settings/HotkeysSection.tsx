@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Switch } from "@/components/ui/switch";
@@ -6,6 +7,7 @@ import { withApp } from "@/lib/settings";
 import type { HotkeyCfg } from "@/lib/types";
 
 export function HotkeysSection() {
+	const { t } = useTranslation();
 	const { settings, commit } = useLoadedSettings();
 	const pause = settings.app.hotkeys.pause;
 	const patchPause = (f: (h: HotkeyCfg) => HotkeyCfg) =>
@@ -16,31 +18,33 @@ export function HotkeysSection() {
 
 	return (
 		<SettingsSection
-			title="Hotkeys"
-			description="Work anywhere, even in game. Keys are captured system-wide, so CS2 won't receive them."
+			title={t("hotkeys.title")}
+			description={t("hotkeys.description")}
 		>
 			<SettingRow
 				wide
 				toggle={
 					<Switch
 						checked={pause.enabled}
-						aria-label="Pause hotkey enabled"
+						aria-label={t("hotkeys.pauseAria")}
 						onCheckedChange={(v) =>
 							commit(
-								v ? "Pause hotkey on" : "Pause hotkey off",
+								t(v ? "common.on" : "common.off", {
+									name: t("hotkeys.pauseLabel"),
+								}),
 								patchPause((h) => ({ ...h, enabled: v })),
 							)
 						}
 					/>
 				}
-				label="Pause / Resume"
+				label={t("hotkeys.pause")}
 			>
 				<HotkeyRecorder
 					value={pause.key}
 					disabled={!pause.enabled}
 					onChange={(key) =>
 						commit(
-							"Pause hotkey",
+							t("hotkeys.pauseLabel"),
 							patchPause((h) => ({ ...h, key })),
 						)
 					}

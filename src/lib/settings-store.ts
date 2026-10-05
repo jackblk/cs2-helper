@@ -6,8 +6,11 @@ import {
 	undone,
 } from "@/lib/history";
 
+// The store's own failures carry a kind, not text, so the caller words them
+// (and translates them); `run` failures use the caller's `failTitle`.
 export type StoreNotice =
 	| { kind: "saved" | "undone" | "redone" | "applied"; label: string }
+	| { kind: "save-failed" | "undo-failed" | "redo-failed"; error: unknown }
 	| { kind: "failed"; title: string; error: unknown };
 
 export type StoreSnapshot<T> = { current: T | null; history: History<T> };
@@ -53,11 +56,11 @@ export function createSettingsStore<T>({
 		return tail;
 	};
 
-	const fail = (title: string, error: unknown) => {
+	const fail = (notice: StoreNotice) => {
 		generation += 1;
 		pending = [];
 		set({});
-		notify({ kind: "failed", title, error });
+		notify(notice);
 	};
 
 	return {
@@ -97,7 +100,7 @@ export function createSettingsStore<T>({
 				try {
 					await save(after);
 				} catch (e) {
-					if (!stale()) fail("Couldn't save", e);
+					if (!stale()) fail({ kind: "save-failed", error: e });
 					return;
 				}
 				if (stale()) return;
@@ -115,7 +118,7 @@ export function createSettingsStore<T>({
 				try {
 					after = await op();
 				} catch (e) {
-					if (!stale()) fail(failTitle, e);
+					if (!stale()) fail({ kind: "failed", title: failTitle, error: e });
 					return;
 				}
 				if (stale()) return;
@@ -138,8 +141,7 @@ export function createSettingsStore<T>({
 				try {
 					await save(entry.before);
 				} catch (e) {
-					if (!stale())
-						notify({ kind: "failed", title: "Couldn't undo", error: e });
+					if (!stale()) notify({ kind: "undo-failed", error: e });
 					return;
 				}
 				if (stale()) return;
@@ -157,8 +159,7 @@ export function createSettingsStore<T>({
 				try {
 					await save(entry.after);
 				} catch (e) {
-					if (!stale())
-						notify({ kind: "failed", title: "Couldn't redo", error: e });
+					if (!stale()) notify({ kind: "redo-failed", error: e });
 					return;
 				}
 				if (stale()) return;

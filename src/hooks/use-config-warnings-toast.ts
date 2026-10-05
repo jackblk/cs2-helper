@@ -1,5 +1,6 @@
 import { createElement, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { warningsKey } from "@/lib/config-warnings";
 
 const WARNINGS_TOAST_ID = "config-warnings";
@@ -21,7 +22,7 @@ export function useConfigWarningsToast(
 			toast.dismiss(WARNINGS_TOAST_ID);
 			return;
 		}
-		toast.warning("Config file had problems", {
+		toast.warning(i18n.t("warnings.title"), {
 			id: WARNINGS_TOAST_ID,
 			duration: Number.POSITIVE_INFINITY,
 			closeButton: true,
@@ -31,7 +32,7 @@ export function useConfigWarningsToast(
 				latest.current.warnings.map((w) => createElement("li", { key: w }, w)),
 			),
 			action: {
-				label: "Reset to defaults",
+				label: i18n.t("warnings.reset"),
 				onClick: () => latest.current.onReset(),
 			},
 		});

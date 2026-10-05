@@ -49,6 +49,7 @@ Guidelines:
 * Add components with `pnpm dlx shadcn@latest add <name>`. Config in [components.json](components.json): style `radix-nova`, baseColor `neutral`, icons `lucide-react`.
 * Import via the `@/` alias (`@/components/ui/button`, `@/lib/utils`). The alias resolves to `src/` (wired in both `vite.config.ts` and `tsconfig.json`).
 * Use `cn()` from the `cn` package (`import { cn } from "cn"`) for conditional classNames. Do not re-export it from `@/lib/utils`.
+* **All user-facing text goes through i18n** (react-i18next), on the Main page, the overlay and in toasts; the Debug page stays English. Add English strings to `src/i18n/en.ts` (the typed key source; `t("...")` must name a key in it), use `useTranslation()` in components and `i18n.t` from `@/i18n` outside React. The language is `[app] language` in config (codes in `LANGUAGES`, `src/i18n/index.ts`, mirrored in `src-tauri/src/i18n.rs`); the header's flag menu (`LanguageMenu.tsx`) changes it and tells the overlay window via `app:language`. Tray and notification text is translated in Rust by `i18n::tr`.
 * Two pages under `HashRouter`: the **Main** page (`src/pages/MainPage.tsx`, the end-user UI) and the **Debug** page (`src/pages/DebugPage.tsx`, diagnostics that grow with each feature). `src/components/Layout.tsx` holds the shared header and the page switch.
 
 ## Architecture
@@ -57,7 +58,7 @@ Guidelines:
 CS2 ──GSI HTTP POST──> GSI server ──> Event engine ──> Audio engine ──> Windows Core Audio (cs2.exe session only)
 ```
 
-Rust modules under `src-tauri/src/`: `audio/`, `gsi/`, `events/`, `config/`, `autostart/`, `hotkey.rs`, `overlay.rs`. Tray, window lifecycle and the Tauri commands live in `lib.rs`.
+Rust modules under `src-tauri/src/`: `audio/`, `gsi/`, `events/`, `config/`, `autostart/`, `hotkey.rs`, `i18n.rs`, `overlay.rs`. Tray, window lifecycle and the Tauri commands live in `lib.rs`.
 
 **Window-creation gotcha:** on Windows, building a webview window on the main thread while the event loop is running deadlocks the app and can leave a frozen always-on-top overlay over the desktop (wry#583; documented on `WebviewWindowBuilder::new`). That covers synchronous Tauri commands, tray/menu handlers and `run_on_main_thread` closures. Any command that can create a window (today `save_config`, `reload_config`, `reset_config`, `overlay_edit_start`, all via `overlay::reconcile`/`create`) must be `async`; the tray "Reload config" handler and the overlay watchdog do their work on a background thread. An `async` command that takes `State<'_>` must return `Result`.
 

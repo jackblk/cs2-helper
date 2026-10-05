@@ -1,5 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppSection } from "@/components/settings/AppSection";
 import { AudioSection } from "@/components/settings/AudioSection";
 import { DeathmatchBar } from "@/components/settings/DeathmatchBar";
@@ -18,6 +19,7 @@ import { useSettings } from "@/hooks/use-settings";
 let setupAutoOpened = false;
 
 export function MainPage() {
+	const { t } = useTranslation();
 	const { settings, loadError, reload } = useSettings();
 	const snap = useEngine();
 	const { gsi, refresh } = useGsiStatus();
@@ -34,10 +36,10 @@ export function MainPage() {
 	if (loadError) {
 		return (
 			<div className="flex items-center gap-3 text-sm text-destructive">
-				<span>Couldn't load settings: {loadError}</span>
+				<span>{t("main.loadFailed", { error: loadError })}</span>
 				<Button variant="outline" size="sm" onClick={reload}>
 					<RefreshCw />
-					Retry
+					{t("main.retry")}
 				</Button>
 			</div>
 		);

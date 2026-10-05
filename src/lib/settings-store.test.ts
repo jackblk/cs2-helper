@@ -73,7 +73,7 @@ describe("createSettingsStore", () => {
 		expect(store.getSnapshot().current).toEqual({ v: 0 });
 		expect(store.getSnapshot().history.past).toEqual([]);
 		expect(notices).toEqual([
-			{ kind: "failed", title: "Couldn't save", error: new Error("taken") },
+			{ kind: "save-failed", error: new Error("taken") },
 		]);
 	});
 
@@ -103,8 +103,7 @@ describe("createSettingsStore", () => {
 		expect(store.getSnapshot().history.past).toHaveLength(1);
 		expect(store.getSnapshot().history.future).toHaveLength(0);
 		expect(notices[notices.length - 1]).toEqual({
-			kind: "failed",
-			title: "Couldn't undo",
+			kind: "undo-failed",
 			error: new Error("disk full"),
 		});
 	});

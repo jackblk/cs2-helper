@@ -12,7 +12,10 @@ mod config;
 mod events;
 mod gsi;
 mod hotkey;
+mod i18n;
 mod overlay;
+
+use i18n::{tr, Text};
 
 /// Payload age after which the game counts as not running.
 const GSI_FRESH_MS: u64 = 5000;
@@ -348,6 +351,8 @@ pub fn run() {
                 overlay::reconcile(app.handle(), &overlay_cfg);
             }
 
+            let lang = app.state::<AppSettings>().0.lock().unwrap().language.clone();
+
             // Started minimized: no window confirms the launch, so notify.
             if !app.state::<AppSettings>().0.lock().unwrap().start_minimized {
                 let _ = window.show();
@@ -358,7 +363,7 @@ pub fn run() {
                     .notification()
                     .builder()
                     .title("CS2 Helper")
-                    .body("Started in the tray. Click the tray icon to open.")
+                    .body(tr(&lang, Text::StartedInTray))
                     .show();
             }
 
@@ -373,11 +378,13 @@ pub fn run() {
                     }
                     if !hint_shown.swap(true, std::sync::atomic::Ordering::SeqCst) {
                         use tauri_plugin_notification::NotificationExt;
+                        let lang =
+                            app_handle.state::<AppSettings>().0.lock().unwrap().language.clone();
                         let _ = app_handle
                             .notification()
                             .builder()
                             .title("CS2 Helper")
-                            .body("Still running in the tray. Right-click the tray icon to exit.")
+                            .body(tr(&lang, Text::StillInTray))
                             .show();
                     }
                 }
@@ -386,22 +393,25 @@ pub fn run() {
             let start_with_windows =
                 app.state::<AppSettings>().0.lock().unwrap().start_with_windows;
 
-            let status_i = MenuItemBuilder::with_id("status", "Waiting for CS2")
+            let status_i = MenuItemBuilder::with_id("status", tr(&lang, Text::StatusWaiting))
                 .enabled(false)
                 .build(app)?;
-            let pause_i = MenuItemBuilder::with_id("pause", "Pause").build(app)?;
-            let startup_i = CheckMenuItemBuilder::with_id("startup", "Run on startup")
+            let pause_i = MenuItemBuilder::with_id("pause", tr(&lang, Text::Pause)).build(app)?;
+            let startup_i = CheckMenuItemBuilder::with_id("startup", tr(&lang, Text::RunOnStartup))
                 .checked(start_with_windows)
                 .build(app)?;
-            let reload_i = MenuItemBuilder::with_id("reload", "Reload config").build(app)?;
+            let reload_i =
+                MenuItemBuilder::with_id("reload", tr(&lang, Text::ReloadConfig)).build(app)?;
             let openfolder_i =
-                MenuItemBuilder::with_id("openfolder", "Open config folder").build(app)?;
+                MenuItemBuilder::with_id("openfolder", tr(&lang, Text::OpenConfigFolder))
+                    .build(app)?;
             // Way out of the full-screen edit surface if its page breaks.
-            let cancel_edit_i = MenuItemBuilder::with_id("cancel_edit", "Cancel overlay edit")
-                .enabled(false)
-                .build(app)?;
-            let show_i = MenuItemBuilder::with_id("show", "Show window").build(app)?;
-            let exit_i = MenuItemBuilder::with_id("exit", "Exit").build(app)?;
+            let cancel_edit_i =
+                MenuItemBuilder::with_id("cancel_edit", tr(&lang, Text::CancelOverlayEdit))
+                    .enabled(false)
+                    .build(app)?;
+            let show_i = MenuItemBuilder::with_id("show", tr(&lang, Text::ShowWindow)).build(app)?;
+            let exit_i = MenuItemBuilder::with_id("exit", tr(&lang, Text::Exit)).build(app)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
 
@@ -497,21 +507,33 @@ pub fn run() {
             let paused_for_tick = app.state::<Paused>().0.clone();
             let gsi_for_tick = app.state::<gsi::SharedGsi>().inner().clone();
             let tick_app = app.handle().clone();
+            let mut tray_lang = lang;
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
+                // Relabel the fixed items only when the language changes.
+                let lang = tick_app.state::<AppSettings>().0.lock().unwrap().language.clone();
+                if lang != tray_lang {
+                    let _ = startup_i.set_text(tr(&lang, Text::RunOnStartup));
+                    let _ = reload_i.set_text(tr(&lang, Text::ReloadConfig));
+                    let _ = openfolder_i.set_text(tr(&lang, Text::OpenConfigFolder));
+                    let _ = cancel_edit_i.set_text(tr(&lang, Text::CancelOverlayEdit));
+                    let _ = show_i.set_text(tr(&lang, Text::ShowWindow));
+                    let _ = exit_i.set_text(tr(&lang, Text::Exit));
+                    tray_lang = lang.clone();
+                }
                 let paused = *paused_for_tick.lock().unwrap();
                 let fresh = gsi::status(&gsi_for_tick)
                     .last_payload_age_ms
                     .is_some_and(|ms| ms < GSI_FRESH_MS);
                 let label = if paused {
-                    "Paused"
+                    Text::StatusPaused
                 } else if fresh {
-                    "Running"
+                    Text::StatusRunning
                 } else {
-                    "Waiting for CS2"
+                    Text::StatusWaiting
                 };
-                let _ = status_i.set_text(label);
-                let _ = pause_i.set_text(if paused { "Resume" } else { "Pause" });
+                let _ = status_i.set_text(tr(&lang, label));
+                let _ = pause_i.set_text(tr(&lang, if paused { Text::Resume } else { Text::Pause }));
                 let _ = cancel_edit_i.set_enabled(overlay::edit_session().is_some());
 
                 // Overlay watchdog: fullscreen or resolution changes and GPU

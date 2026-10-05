@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { cn } from "cn";
 import { Check, Eye, Move, Power, PowerOff, RotateCcw, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { NumberField } from "@/components/settings/NumberField";
 import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ const EDIT_BUTTON = "w-32";
 const ENABLE_BUTTON = "w-22";
 
 export function OverlaySection() {
+	const { t } = useTranslation();
 	const { settings, commit, overlayEditing } = useLoadedSettings();
 	const o = settings.app.overlay;
 
@@ -24,7 +26,7 @@ export function OverlaySection() {
 		try {
 			await invoke("overlay_edit_start");
 		} catch (e) {
-			toastError("Couldn't edit overlay", e);
+			toastError(t("overlay.editFailed"), e);
 		}
 	};
 
@@ -37,8 +39,8 @@ export function OverlaySection() {
 
 	return (
 		<SettingsSection
-			title="Overlay"
-			description="Draws over CS2. Needs borderless windowed, not fullscreen."
+			title={t("overlay.title")}
+			description={t("overlay.description")}
 			off={!o.enabled}
 			action={
 				<Button
@@ -52,26 +54,28 @@ export function OverlaySection() {
 					)}
 					onClick={() =>
 						commit(
-							o.enabled ? "Overlay off" : "Overlay on",
+							t(o.enabled ? "common.off" : "common.on", {
+								name: t("overlay.title"),
+							}),
 							withOverlay((x) => ({ ...x, enabled: !x.enabled })),
 						)
 					}
 				>
 					{o.enabled ? <PowerOff /> : <Power />}
-					{o.enabled ? "Disable" : "Enable"}
+					{o.enabled ? t("overlay.disable") : t("overlay.enable")}
 				</Button>
 			}
 		>
 			<SettingRow
-				label="Position & size"
-				info="Drag and resize the overlay on your screen. Preview shows it for 5 seconds."
+				label={t("overlay.positionSize")}
+				info={t("overlay.positionInfo")}
 				wide
 			>
 				{overlayEditing ? (
 					<>
 						<Button className={EDIT_BUTTON} onClick={finishEdit}>
 							<Check />
-							Done
+							{t("overlay.done")}
 						</Button>
 						<Button
 							variant="outline"
@@ -79,7 +83,7 @@ export function OverlaySection() {
 							onClick={cancelEdit}
 						>
 							<X />
-							Cancel
+							{t("overlay.cancel")}
 						</Button>
 					</>
 				) : (
@@ -91,7 +95,7 @@ export function OverlaySection() {
 							onClick={startEdit}
 						>
 							<Move />
-							Edit overlay
+							{t("overlay.edit")}
 						</Button>
 						<Button
 							variant="outline"
@@ -99,7 +103,7 @@ export function OverlaySection() {
 							disabled={!o.enabled}
 							onClick={() =>
 								commit(
-									"Overlay reset",
+									t("overlay.resetLabel"),
 									withOverlay((x) => ({
 										...x,
 										pos_x: null,
@@ -110,7 +114,7 @@ export function OverlaySection() {
 							}
 						>
 							<RotateCcw />
-							Reset
+							{t("overlay.reset")}
 						</Button>
 						<Button
 							variant="outline"
@@ -120,7 +124,7 @@ export function OverlaySection() {
 							onClick={() => emit("overlay:preview-start")}
 						>
 							<Eye />
-							Preview
+							{t("overlay.preview")}
 						</Button>
 					</>
 				)}
@@ -130,27 +134,29 @@ export function OverlaySection() {
 					<Switch
 						checked={o.bomb_timer}
 						disabled={!o.enabled}
-						aria-label="Bomb timer enabled"
+						aria-label={t("overlay.bombTimerAria")}
 						onCheckedChange={(v) =>
 							commit(
-								v ? "Bomb timer on" : "Bomb timer off",
+								t(v ? "common.on" : "common.off", {
+									name: t("overlay.bombTimer"),
+								}),
 								withOverlay((x) => ({ ...x, bomb_timer: v })),
 							)
 						}
 					/>
 				}
-				label="Bomb timer"
-				info="Shows the time left after the bomb is planted. Set the fuse length to match the game mode."
+				label={t("overlay.bombTimer")}
+				info={t("overlay.bombTimerInfo")}
 			>
 				<NumberField
 					value={o.c4_timer_s}
 					step={1}
-					unit="sec"
+					unit={t("overlay.unitSec")}
 					disabled={!o.enabled || !o.bomb_timer}
-					ariaLabel="Bomb fuse seconds"
+					ariaLabel={t("overlay.fuseAria")}
 					onCommit={(n) =>
 						commit(
-							"Bomb fuse length",
+							t("overlay.fuseLabel"),
 							withOverlay((x) => ({ ...x, c4_timer_s: n })),
 						)
 					}
@@ -161,17 +167,19 @@ export function OverlaySection() {
 					<Switch
 						checked={o.volume_status}
 						disabled={!o.enabled}
-						aria-label="Volume status enabled"
+						aria-label={t("overlay.volumeStatusAria")}
 						onCheckedChange={(v) =>
 							commit(
-								v ? "Volume status on" : "Volume status off",
+								t(v ? "common.on" : "common.off", {
+									name: t("overlay.volumeStatus"),
+								}),
 								withOverlay((x) => ({ ...x, volume_status: v })),
 							)
 						}
 					/>
 				}
-				label="Volume status"
-				info="While the volume is lowered, shows it and the top reason above the bomb timer, e.g. FLASH 15%."
+				label={t("overlay.volumeStatus")}
+				info={t("overlay.volumeStatusInfo")}
 			/>
 		</SettingsSection>
 	);

@@ -1,8 +1,10 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ConfigWarningsToast } from "@/components/ConfigWarningsToast";
+import { LanguageMenu } from "@/components/LanguageMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -15,6 +17,7 @@ const DEBUG_UNLOCK_CLICKS = 3;
 const CLICK_RESET_MS = 600;
 
 export function Layout() {
+	const { t } = useTranslation();
 	const onDebug = useLocation().pathname === "/debug";
 	const navigate = useNavigate();
 	const mainRef = useRef<HTMLElement>(null);
@@ -69,7 +72,7 @@ export function Layout() {
 										rel="noopener noreferrer"
 										className="text-xs text-muted-foreground hover:text-foreground hover:underline"
 									>
-										by jackblk
+										{t("header.byline", { author: "jackblk" })}
 									</a>
 								</div>
 							</div>
@@ -87,6 +90,7 @@ export function Layout() {
 										{version}
 									</Badge>
 								)}
+								<LanguageMenu />
 							</div>
 						</header>
 						<Outlet />

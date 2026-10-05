@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { DebugPage } from "@/pages/DebugPage";
 import { MainPage } from "@/pages/MainPage";
 import { Overlay } from "@/pages/Overlay";
+import "@/i18n";
 import "./App.css";
 
 const isOverlay = getCurrentWindow().label === "overlay";

@@ -30,6 +30,8 @@ export type HotkeysConfig = { pause: HotkeyCfg; deathmatch: HotkeyCfg };
 export type AppConfig = {
 	start_with_windows: boolean;
 	start_minimized: boolean;
+	// A code from LANGUAGES in src/i18n.
+	language: string;
 	overlay: OverlayConfig;
 	hotkeys: HotkeysConfig;
 };

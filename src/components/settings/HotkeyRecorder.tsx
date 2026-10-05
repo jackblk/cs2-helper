@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Keyboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { toastError } from "@/lib/toast";
 
@@ -31,6 +32,7 @@ export function HotkeyRecorder({
 	disabled: boolean;
 	onChange: (key: string) => void;
 }) {
+	const { t } = useTranslation();
 	const [recording, setRecording] = useState(false);
 
 	useEffect(() => {
@@ -71,7 +73,7 @@ export function HotkeyRecorder({
 			await invoke("hotkey_capture_start");
 			setRecording(true);
 		} catch (e) {
-			toastError("Couldn't record hotkey", e);
+			toastError(t("hotkeys.recordFailed"), e);
 		}
 	};
 
@@ -84,7 +86,7 @@ export function HotkeyRecorder({
 			className="w-48 font-mono"
 		>
 			<Keyboard />
-			{recording ? "Press a key… (Esc)" : value}
+			{recording ? t("hotkeys.recording") : value}
 		</Button>
 	);
 }

@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -74,6 +75,7 @@ export function SettingRow({
 	wide?: boolean;
 	children?: ReactNode;
 }) {
+	const { t } = useTranslation();
 	return (
 		<div className={ROW_GRID}>
 			<div className="flex">{toggle}</div>
@@ -85,7 +87,7 @@ export function SettingRow({
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`${label} info`}
+								aria-label={t("common.infoAria", { label })}
 								className="text-muted-foreground"
 							>
 								<Info />

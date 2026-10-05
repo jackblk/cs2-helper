@@ -26,6 +26,7 @@ struct DefaultFile {
 struct AppFlags {
     start_with_windows: bool,
     start_minimized: bool,
+    language: String,
 }
 
 static DEFAULTS: LazyLock<DefaultFile> = LazyLock::new(|| {
@@ -126,6 +127,9 @@ pub struct AppConfig {
     /// shortcut (not the registry).
     pub start_with_windows: bool,
     pub start_minimized: bool,
+    /// One of `i18n::LANGUAGES`.
+    #[serde(default = "default_language")]
+    pub language: String,
     // `serde(default)`: UI JSON and older files may omit these tables.
     #[serde(default)]
     pub overlay: OverlayConfig,
@@ -138,10 +142,15 @@ impl Default for AppConfig {
         AppConfig {
             start_with_windows: DEFAULTS.app.start_with_windows,
             start_minimized: DEFAULTS.app.start_minimized,
+            language: default_language(),
             overlay: OverlayConfig::default(),
             hotkeys: HotkeysConfig::default(),
         }
     }
+}
+
+fn default_language() -> String {
+    DEFAULTS.app.language.clone()
 }
 
 fn default_doc() -> toml_edit::DocumentMut {
@@ -176,6 +185,7 @@ pub fn serialize(config: &Config, app: &AppConfig) -> String {
 
     doc["app"]["start_with_windows"] = value(app.start_with_windows);
     doc["app"]["start_minimized"] = value(app.start_minimized);
+    doc["app"]["language"] = value(app.language.as_str());
 
     let o = &app.overlay;
     let overlay = &mut doc["overlay"];
@@ -404,6 +414,16 @@ fn apply_app(table: &toml::Table, out: &mut AppConfig, warnings: &mut Vec<String
                 set_bool(value, "app", key, &mut out.start_with_windows, warnings)
             }
             "start_minimized" => set_bool(value, "app", key, &mut out.start_minimized, warnings),
+            "language" => match value.as_str() {
+                Some(code) if crate::i18n::LANGUAGES.contains(&code) => {
+                    out.language = code.to_string()
+                }
+                _ => warnings.push(format!(
+                    "app.language: expected one of {:?}, got {value}; keeping \"{}\"",
+                    crate::i18n::LANGUAGES,
+                    out.language
+                )),
+            },
             _ => warnings.push(format!("unknown key app.{key} ignored")),
         }
     }
@@ -721,6 +741,19 @@ mod tests {
     }
 
     #[test]
+    fn language_defaults_to_en_and_rejects_unknown_codes() {
+        assert_eq!(AppConfig::default().language, "en");
+        let (_c, app, warnings) = parse("[app]\nlanguage = \"vi\"\n");
+        assert_eq!(app.language, "vi");
+        assert!(warnings.is_empty(), "{warnings:?}");
+
+        let (_c, app, warnings) = parse("[app]\nlanguage = \"xx\"\n");
+        assert_eq!(app.language, "en", "unknown code keeps the default");
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("app.language"), "{warnings:?}");
+    }
+
+    #[test]
     fn app_unknown_key_and_bad_type_warn_and_fall_back() {
         let (_c, app, warnings) = parse("[app]\nstart_with_windows = \"yes\"\nfoo = 1\n");
         assert!(!app.start_with_windows, "bad type keeps default false");
@@ -749,6 +782,7 @@ mod tests {
         let a = AppConfig {
             start_with_windows: true,
             start_minimized: true,
+            language: "en".to_string(),
             overlay: OverlayConfig::default(),
             hotkeys: HotkeysConfig {
                 pause: HotkeyCfg {

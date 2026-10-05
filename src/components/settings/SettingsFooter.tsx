@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Ellipsis, FolderOpen, RefreshCw, RotateCcw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { UndoRedo } from "@/components/UndoRedo";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { toastError } from "@/lib/toast";
 import type { ConfigPayload } from "@/lib/types";
 
 export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
+	const { t } = useTranslation();
 	const { resetDefaults, adoptExternal } = useLoadedSettings();
 
 	// Picks up hand edits to config.toml. Like the tray's reload it replaces
@@ -25,9 +27,9 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 		try {
 			const { config, app } = await invoke<ConfigPayload>("reload_config");
 			adoptExternal({ config, app });
-			toast.success("Config reloaded");
+			toast.success(t("footer.reloaded"));
 		} catch (e) {
-			toastError("Reload failed", e);
+			toastError(t("footer.reloadFailed"), e);
 		}
 	};
 
@@ -37,14 +39,14 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 			<Separator orientation="vertical" className="mx-1 my-1" />
 			<Button variant="outline" onClick={resetDefaults}>
 				<RotateCcw />
-				Reset to defaults
+				{t("footer.resetDefaults")}
 			</Button>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
 						variant="outline"
 						size="icon"
-						aria-label="More actions"
+						aria-label={t("footer.more")}
 						className="ml-auto"
 					>
 						<Ellipsis />
@@ -54,7 +56,7 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 				<DropdownMenuContent align="end" className="w-max">
 					<DropdownMenuItem onSelect={reloadConfig}>
 						<RefreshCw />
-						Reload config
+						{t("footer.reloadConfig")}
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
@@ -62,11 +64,11 @@ export function SettingsFooter({ cs2Found }: { cs2Found: boolean }) {
 						onSelect={() => openFolder("open_gsi_cfg_dir")}
 					>
 						<FolderOpen />
-						Open CS2 config folder
+						{t("footer.openCs2Folder")}
 					</DropdownMenuItem>
 					<DropdownMenuItem onSelect={() => openFolder("open_config_dir")}>
 						<FolderOpen />
-						Open app config folder
+						{t("footer.openAppFolder")}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
