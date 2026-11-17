@@ -143,7 +143,6 @@ impl GameState {
         if let (Some(a), Some(b)) = (&self.provider_steamid, &self.player_steamid) {
             self.is_local_player = a == b;
         }
-        // Every observing POST carries `allplayers`, so mirror its presence.
         self.observing = p.allplayers.as_ref().is_some_and(|m| !m.is_empty());
     }
 }

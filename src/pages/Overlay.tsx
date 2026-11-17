@@ -22,6 +22,7 @@ import i18n from "@/i18n";
 import { C4_FUSE_DEFAULT, type DefuseColor, defuseColor } from "@/lib/defuse";
 import {
 	clampToMonitor,
+	DEFAULT_OVERLAY_SCALE,
 	OVERLAY_BASE,
 	overlaySize,
 	placeToolbar,
@@ -51,7 +52,7 @@ const DEFAULT_OVERLAY: OverlayConfig = {
 	safety_margin_s: 0,
 	pos_x: null,
 	pos_y: null,
-	scale: 1,
+	scale: DEFAULT_OVERLAY_SCALE,
 };
 
 // Show the badge for a short grace period after detonation so 0.0 is visible.
@@ -147,7 +148,6 @@ export function Overlay() {
 		if (bomb === "planted" && prevBomb.current !== "planted") {
 			plantedAt.current = performance.now();
 		} else if (bomb !== "planted" && bomb !== "defusing") {
-			// "defused", "exploded", or gone.
 			plantedAt.current = null;
 		}
 		prevBomb.current = bomb;

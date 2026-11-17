@@ -2,7 +2,7 @@
 # Volumes are absolute targets on the 0.0-1.0 scale (0.15 = 15%).
 # When several reductions are active the smallest volume wins.
 # Restore always goes back to 100%.
-# Reload from the app after editing (debug panel / tray).
+# Reload from the app after editing (the footer menu or the tray).
 
 # Local player dies: reduce volume for duration_ms (spectator takes over while dead).
 [audio.death]
@@ -45,7 +45,7 @@ language = "en"
 # volume_status: while the volume is lowered, show it and its top reason (e.g. FLASH 15%).
 # c4_timer_s: bomb fuse seconds (40 default).
 # safety_margin_s: subtract from remaining time before coloring (0 = pure math).
-# scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for top-center).
+# scale: size multiplier. pos_x/pos_y: logical-pixel top-left (omit for bottom-center).
 [overlay]
 enabled = true
 bomb_timer = true

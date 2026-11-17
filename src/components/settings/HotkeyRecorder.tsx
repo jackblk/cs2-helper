@@ -20,16 +20,16 @@ function shortcutFromEvent(e: KeyboardEvent): string | null {
 	return [...mods, key].join("+");
 }
 
-// The live hotkey is unregistered while recording (otherwise pressing it would
-// toggle pause instead of reaching the webview) and re-registered from the
-// saved config afterwards.
+// The live hotkeys are unregistered while recording (otherwise a bound key
+// would run its action instead of reaching the webview) and re-registered
+// from the saved config afterwards.
 export function HotkeyRecorder({
 	value,
-	disabled,
+	disabled = false,
 	onChange,
 }: {
 	value: string;
-	disabled: boolean;
+	disabled?: boolean;
 	onChange: (key: string) => void;
 }) {
 	const { t } = useTranslation();

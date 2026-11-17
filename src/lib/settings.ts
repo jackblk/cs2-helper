@@ -1,4 +1,9 @@
+import i18n from "@/i18n";
 import type { AppConfig, Config, OverlayConfig, Settings } from "@/lib/types";
+
+// Undo/redo label of an on/off change.
+export const toggleLabel = (on: boolean, name: string) =>
+	i18n.t(on ? "common.on" : "common.off", { name });
 
 export const withConfig =
 	(f: (c: Config) => Config) =>

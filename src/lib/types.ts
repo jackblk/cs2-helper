@@ -53,6 +53,8 @@ export type GsiStatus = {
 	running: boolean;
 	port: number;
 	last_payload_age_ms: number | null;
+	// CS2 posted recently enough to count as running.
+	fresh: boolean;
 	cfg_path: string | null;
 	cfg_installed: boolean;
 };

@@ -17,9 +17,6 @@ mod overlay;
 
 use i18n::{tr, Text};
 
-/// Payload age after which the game counts as not running.
-const GSI_FRESH_MS: u64 = 5000;
-
 struct Engine(Arc<events::runtime::EngineHandle>);
 
 struct ConfigPath(std::path::PathBuf);
@@ -28,7 +25,7 @@ struct AppSettings(Mutex<config::AppConfig>);
 
 /// Mirror of the engine's paused flag, so the tray status tick does not lock
 /// the full snapshot every second.
-struct Paused(Arc<Mutex<bool>>);
+struct Paused(Mutex<bool>);
 
 /// Mirror of the engine's Deathmatch mode flag, so a hotkey toggle reads the
 /// last requested state rather than a snapshot that may not have caught up.
@@ -106,6 +103,34 @@ struct SettingsChanged {
     app: config::AppConfig,
 }
 
+fn emit_settings_changed(app: &tauri::AppHandle, config: config::Config, app_cfg: config::AppConfig) {
+    let _ = app.emit(
+        SETTINGS_CHANGED,
+        SettingsChanged {
+            config,
+            app: app_cfg,
+        },
+    );
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn notify(app: &tauri::AppHandle, text: Text) {
+    use tauri_plugin_notification::NotificationExt;
+    let lang = app.state::<AppSettings>().0.lock().unwrap().language.clone();
+    let _ = app
+        .notification()
+        .builder()
+        .title("CS2 Helper")
+        .body(tr(&lang, text))
+        .show();
+}
+
 fn load_and_apply_config(
     app_handle: &tauri::AppHandle,
     engine: &Engine,
@@ -166,8 +191,8 @@ fn open_config_dir(app: tauri::AppHandle, path: tauri::State<'_, ConfigPath>) ->
 
 #[tauri::command]
 fn set_paused(paused: bool, engine: tauri::State<'_, Engine>, flag: tauri::State<'_, Paused>) {
-    engine.0.set_paused(paused);
     *flag.0.lock().unwrap() = paused;
+    engine.0.set_paused(paused);
 }
 
 fn toggle_paused(app: &tauri::AppHandle) {
@@ -175,9 +200,9 @@ fn toggle_paused(app: &tauri::AppHandle) {
     let (Some(engine), Some(flag)) = (app.try_state::<Engine>(), app.try_state::<Paused>()) else {
         return;
     };
-    let next = !*flag.0.lock().unwrap();
-    engine.0.set_paused(next);
-    *flag.0.lock().unwrap() = next;
+    let mut paused = flag.0.lock().unwrap();
+    *paused = !*paused;
+    engine.0.set_paused(*paused);
 }
 
 /// The main page's Quit. Same path as the tray's Exit: `RunEvent::Exit`
@@ -194,7 +219,6 @@ fn set_deathmatch(on: bool, engine: tauri::State<'_, Engine>, flag: tauri::State
 }
 
 fn toggle_deathmatch(app: &tauri::AppHandle) {
-    // `try_state`: the hotkey can fire before setup has managed the state.
     let (Some(engine), Some(flag)) = (app.try_state::<Engine>(), app.try_state::<Deathmatch>())
     else {
         return;
@@ -236,7 +260,10 @@ async fn save_config(
     // save nothing, so the file never holds a key that does not work.
     let prev_hotkeys = settings.0.lock().unwrap().hotkeys.clone();
     hotkey::apply_or_revert(&app_handle, &app.hotkeys, &prev_hotkeys)?;
-    config::write(&path.0, &config, &app)?;
+    if let Err(e) = config::write(&path.0, &config, &app) {
+        let _ = hotkey::apply(&app_handle, &prev_hotkeys);
+        return Err(e);
+    }
     // UI values are already typed, so there are no parse warnings.
     engine.0.set_config(config, Vec::new());
     *settings.0.lock().unwrap() = app.clone();
@@ -277,10 +304,7 @@ fn overlay_edit_end(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
+            show_main_window(app)
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -337,68 +361,47 @@ pub fn run() {
                 Err(e) => eprintln!("GSI server failed to start: {e}"),
             }
 
-            let paused_flag = Arc::new(Mutex::new(false));
+            let lang = app_config.language.clone();
+            let start_minimized = app_config.start_minimized;
+            let start_with_windows = app_config.start_with_windows;
+            let overlay_cfg = app_config.overlay;
 
             // Config is the source of truth for autostart: make the OS match it.
             #[cfg(windows)]
-            let _ = autostart::set_enabled(app_config.start_with_windows);
+            let _ = autostart::set_enabled(start_with_windows);
 
             app.manage(shared);
             app.manage(gsi::GsiToken(token));
             app.manage(Engine(engine));
             app.manage(ConfigPath(config_file));
             app.manage(AppSettings(Mutex::new(app_config)));
-            app.manage(Paused(paused_flag));
+            app.manage(Paused(Mutex::new(false)));
             app.manage(Deathmatch(Mutex::new(false)));
 
-            let window = app.get_webview_window("main").expect("main window exists");
-
-            {
-                let overlay_cfg = app.state::<AppSettings>().0.lock().unwrap().overlay;
-                overlay::reconcile(app.handle(), &overlay_cfg);
-            }
-
-            let lang = app.state::<AppSettings>().0.lock().unwrap().language.clone();
+            overlay::reconcile(app.handle(), &overlay_cfg);
 
             // Started minimized: no window confirms the launch, so notify.
-            if !app.state::<AppSettings>().0.lock().unwrap().start_minimized {
-                let _ = window.show();
-                let _ = window.set_focus();
+            if start_minimized {
+                notify(app.handle(), Text::StartedInTray);
             } else {
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title("CS2 Helper")
-                    .body(tr(&lang, Text::StartedInTray))
-                    .show();
+                show_main_window(app.handle());
             }
 
             // Close (X) hides to the tray instead of quitting.
             let hint_shown = Arc::new(std::sync::atomic::AtomicBool::new(false));
             let app_handle = app.handle().clone();
-            window.clone().on_window_event(move |event| {
+            let window = app.get_webview_window("main").expect("main window exists");
+            window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     if let Some(w) = app_handle.get_webview_window("main") {
                         let _ = w.hide();
                     }
                     if !hint_shown.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                        use tauri_plugin_notification::NotificationExt;
-                        let lang =
-                            app_handle.state::<AppSettings>().0.lock().unwrap().language.clone();
-                        let _ = app_handle
-                            .notification()
-                            .builder()
-                            .title("CS2 Helper")
-                            .body(tr(&lang, Text::StillInTray))
-                            .show();
+                        notify(&app_handle, Text::StillInTray);
                     }
                 }
             });
-
-            let start_with_windows =
-                app.state::<AppSettings>().0.lock().unwrap().start_with_windows;
 
             let status_i = MenuItemBuilder::with_id("status", tr(&lang, Text::StatusWaiting))
                 .enabled(false)
@@ -448,13 +451,7 @@ pub fn run() {
                         let cfg = app.state::<Engine>().0.snapshot().config.unwrap_or_default();
                         let path = app.state::<ConfigPath>();
                         let _ = config::write(&path.0, &cfg, &app_cfg);
-                        let _ = app.emit(
-                            SETTINGS_CHANGED,
-                            SettingsChanged {
-                                config: cfg,
-                                app: app_cfg,
-                            },
-                        );
+                        emit_settings_changed(app, cfg, app_cfg);
                     }
                     "reload" => {
                         // Off the main thread: it can create the overlay
@@ -467,13 +464,7 @@ pub fn run() {
                                 &app.state::<ConfigPath>(),
                                 &app.state::<AppSettings>(),
                             );
-                            let _ = app.emit(
-                                SETTINGS_CHANGED,
-                                SettingsChanged {
-                                    config: payload.config,
-                                    app: payload.app,
-                                },
-                            );
+                            emit_settings_changed(&app, payload.config, payload.app);
                         });
                     }
                     "cancel_edit" => {
@@ -485,12 +476,7 @@ pub fn run() {
                         let path = app.state::<ConfigPath>();
                         let _ = app.opener().reveal_item_in_dir(path.0.clone());
                     }
-                    "show" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        }
-                    }
+                    "show" => show_main_window(app),
                     "exit" => app.exit(0),
                     _ => {}
                 })
@@ -501,24 +487,30 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        if let Some(w) = tray.app_handle().get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        }
+                        show_main_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
 
             // Polled because "Waiting for CS2" depends on GSI freshness, which
             // is time-based.
-            let paused_for_tick = app.state::<Paused>().0.clone();
             let gsi_for_tick = app.state::<gsi::SharedGsi>().inner().clone();
             let tick_app = app.handle().clone();
             let mut tray_lang = lang;
+            let mut tray_startup = start_with_windows;
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
+                let (lang, startup, overlay_cfg) = {
+                    let s = tick_app.state::<AppSettings>();
+                    let s = s.0.lock().unwrap();
+                    (s.language.clone(), s.start_with_windows, s.overlay)
+                };
+                // The setting also changes from the main window and on reload.
+                if startup != tray_startup {
+                    let _ = startup_i.set_checked(startup);
+                    tray_startup = startup;
+                }
                 // Relabel the fixed items only when the language changes.
-                let lang = tick_app.state::<AppSettings>().0.lock().unwrap().language.clone();
                 if lang != tray_lang {
                     let _ = startup_i.set_text(tr(&lang, Text::RunOnStartup));
                     let _ = reload_i.set_text(tr(&lang, Text::ReloadConfig));
@@ -528,10 +520,8 @@ pub fn run() {
                     let _ = exit_i.set_text(tr(&lang, Text::Exit));
                     tray_lang = lang.clone();
                 }
-                let paused = *paused_for_tick.lock().unwrap();
-                let fresh = gsi::status(&gsi_for_tick)
-                    .last_payload_age_ms
-                    .is_some_and(|ms| ms < GSI_FRESH_MS);
+                let paused = *tick_app.state::<Paused>().0.lock().unwrap();
+                let fresh = gsi::is_fresh(&gsi_for_tick);
                 let label = if paused {
                     Text::StatusPaused
                 } else if fresh {
@@ -547,8 +537,7 @@ pub fn run() {
                 // surface loss can destroy, hide, or bury the overlay, and the
                 // OS never restores it. Runs on this thread, not the main
                 // one: recreating the window there deadlocks.
-                let cfg = tick_app.state::<AppSettings>().0.lock().unwrap().overlay;
-                overlay::ensure_alive(&tick_app, &cfg);
+                overlay::ensure_alive(&tick_app, &overlay_cfg);
             });
 
             Ok(())

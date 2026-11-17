@@ -75,27 +75,12 @@ export function SettingRow({
 	wide?: boolean;
 	children?: ReactNode;
 }) {
-	const { t } = useTranslation();
 	return (
 		<div className={ROW_GRID}>
 			<div className="flex">{toggle}</div>
 			<div className="flex min-w-0 items-center gap-1.5">
 				<Label className="truncate font-medium">{label}</Label>
-				{info && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-xs"
-								aria-label={t("common.infoAria", { label })}
-								className="text-muted-foreground"
-							>
-								<Info />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>{info}</TooltipContent>
-					</Tooltip>
-				)}
+				{info && <InfoTip label={label} text={info} />}
 			</div>
 			<div
 				className={cn("flex min-w-0 items-center gap-2", wide && "col-span-3")}
@@ -111,5 +96,24 @@ export function SettingRow({
 				</>
 			)}
 		</div>
+	);
+}
+
+export function InfoTip({ label, text }: { label: string; text: string }) {
+	const { t } = useTranslation();
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					aria-label={t("common.infoAria", { label })}
+					className="text-muted-foreground"
+				>
+					<Info />
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{text}</TooltipContent>
+		</Tooltip>
 	);
 }

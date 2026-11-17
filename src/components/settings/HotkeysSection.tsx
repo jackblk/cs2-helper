@@ -3,7 +3,7 @@ import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
 import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Switch } from "@/components/ui/switch";
 import { useLoadedSettings } from "@/hooks/use-settings";
-import { withApp } from "@/lib/settings";
+import { toggleLabel, withApp } from "@/lib/settings";
 import type { HotkeyCfg } from "@/lib/types";
 
 export function HotkeysSection() {
@@ -29,9 +29,7 @@ export function HotkeysSection() {
 						aria-label={t("hotkeys.pauseAria")}
 						onCheckedChange={(v) =>
 							commit(
-								t(v ? "common.on" : "common.off", {
-									name: t("hotkeys.pauseLabel"),
-								}),
+								toggleLabel(v, t("hotkeys.pauseLabel")),
 								patchPause((h) => ({ ...h, enabled: v })),
 							)
 						}

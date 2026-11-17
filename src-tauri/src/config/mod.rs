@@ -60,7 +60,7 @@ impl Default for DeathmatchCfg {
     }
 }
 
-/// `pos_*` are logical pixels (`None`: default top-center placement);
+/// `pos_*` are logical pixels (`None`: default bottom-center placement);
 /// `scale` multiplies the base size.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct OverlayConfig {

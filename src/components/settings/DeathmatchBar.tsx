@@ -1,17 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "cn";
-import { Info, Play, Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HotkeyRecorder } from "@/components/settings/HotkeyRecorder";
+import { InfoTip } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useLoadedSettings } from "@/hooks/use-settings";
 import { withApp, withConfig } from "@/lib/settings";
 import { toastError } from "@/lib/toast";
@@ -42,21 +38,7 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 			<CardContent className="flex items-center gap-3">
 				<div className="flex w-40 shrink-0 items-center gap-1.5">
 					<span className="text-sm font-medium">{t("deathmatch.title")}</span>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon-xs"
-								aria-label={t("common.infoAria", {
-									label: t("deathmatch.title"),
-								})}
-								className="text-muted-foreground"
-							>
-								<Info />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>{t("deathmatch.info")}</TooltipContent>
-					</Tooltip>
+					<InfoTip label={t("deathmatch.title")} text={t("deathmatch.info")} />
 				</div>
 				<Slider
 					value={[volume * 100]}
@@ -77,7 +59,6 @@ export function DeathmatchBar({ on }: { on: boolean }) {
 				</span>
 				<HotkeyRecorder
 					value={hotkey.key}
-					disabled={false}
 					onChange={(key) =>
 						commit(
 							t("deathmatch.hotkeyLabel"),

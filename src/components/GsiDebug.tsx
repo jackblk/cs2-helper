@@ -11,7 +11,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import type { GsiStatus, GsiUpdate } from "@/lib/types";
+import { useGsiStatus } from "@/hooks/use-gsi-status";
+import type { GsiUpdate } from "@/lib/types";
 
 function formatAge(ms: number | null): string {
 	if (ms == null) return "never";
@@ -20,7 +21,7 @@ function formatAge(ms: number | null): string {
 }
 
 export function GsiDebug() {
-	const [status, setStatus] = useState<GsiStatus | null>(null);
+	const { gsi: status, refresh } = useGsiStatus();
 	const [update, setUpdate] = useState<GsiUpdate | null>(null);
 	const [count, setCount] = useState(0);
 	const [message, setMessage] = useState("");
@@ -30,12 +31,7 @@ export function GsiDebug() {
 			setUpdate(event.payload);
 			setCount((c) => c + 1);
 		});
-		const refresh = () =>
-			invoke<GsiStatus>("gsi_status").then(setStatus, () => {});
-		refresh();
-		const timer = setInterval(refresh, 1000);
 		return () => {
-			clearInterval(timer);
 			unlisten.then((fn) => fn());
 		};
 	}, []);
@@ -48,6 +44,7 @@ export function GsiDebug() {
 		} catch (e) {
 			setMessage(`error: ${e}`);
 		}
+		refresh();
 	};
 
 	const state = update?.state;

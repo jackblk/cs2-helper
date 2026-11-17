@@ -137,6 +137,9 @@ pub fn start_engine<A: AudioControl>(
         let mut latches = Latches::default();
         // None means restored (or never ducked).
         let mut applied: Option<f32> = None;
+        // CS2 exited while ducked. Windows remembers a session's volume, so
+        // the next session starts lowered and has to be put back to 100%.
+        let mut restore_pending = false;
         let mut last_poll = Instant::now();
         let mut log: Vec<LogEntry> = Vec::new();
         let mut was_gone = false;
@@ -147,9 +150,11 @@ pub fn start_engine<A: AudioControl>(
             let msg = rx.recv_timeout(options.tick);
             let now = Instant::now();
             let mut triggers: Vec<String> = Vec::new();
+            let mut got_state = false;
 
             match msg {
                 Ok(EngineMsg::State(next)) => {
+                    got_state = true;
                     if !paused {
                         triggers.extend(core::detect(&state, &next, &mut latches, &cfg, now));
                     }
@@ -181,7 +186,7 @@ pub fn start_engine<A: AudioControl>(
                     }
                 }
                 Ok(EngineMsg::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
-                    if applied.is_some() {
+                    if applied.is_some() || restore_pending {
                         let _ = audio.set_volume(1.0);
                     }
                     return;
@@ -194,44 +199,46 @@ pub fn start_engine<A: AudioControl>(
             }
 
             let mut session_gone = false;
-            let mut reapply = false;
-            if !paused {
-                let wants_duck =
-                    core::target(&core::active_with_modes(&state, &latches, &cfg, deathmatch))
-                        .is_some();
-                if (wants_duck || applied.is_some())
-                    && now.duration_since(last_poll) >= options.poll
-                {
-                    last_poll = now;
-                    match audio.get_volume() {
-                        Ok(None) => {
-                            // Game closed or crashed: discard all duck state,
-                            // new GSI events rebuild it from scratch.
-                            session_gone = true;
-                            latches.clear();
-                            state = GameState::default();
-                            applied = None;
-                            // Deathmatch mode keeps wanting a duck with CS2
-                            // closed, so this repeats every poll: log it once.
-                            if !was_gone {
-                                triggers.push(
-                                    "cs2.exe session gone → reduction state discarded"
-                                        .to_string(),
-                                );
-                            }
-                            was_gone = true;
+            let mut session_seen = false;
+            let ducking = applied.is_some()
+                || (!paused
+                    && core::target(&core::active_with_modes(&state, &latches, &cfg, deathmatch))
+                        .is_some());
+            // A pending restore is checked only on GSI traffic, the sign that
+            // CS2 is running again.
+            if (ducking || (restore_pending && got_state))
+                && now.duration_since(last_poll) >= options.poll
+            {
+                last_poll = now;
+                match audio.get_volume() {
+                    Ok(None) if ducking => {
+                        // Game closed or crashed: discard all duck state,
+                        // new GSI events rebuild it from scratch.
+                        session_gone = true;
+                        restore_pending |= applied.is_some();
+                        latches.clear();
+                        state = GameState::default();
+                        applied = None;
+                        // Deathmatch mode keeps wanting a duck with CS2
+                        // closed, so this repeats every poll: log it once.
+                        if !was_gone {
+                            triggers.push(
+                                "cs2.exe session gone → reduction state discarded".to_string(),
+                            );
                         }
-                        // Re-apply below so a restarted cs2.exe immediately
-                        // regains protection.
-                        Ok(Some(_)) => {
-                            reapply = true;
-                            if was_gone {
-                                was_gone = false;
-                                triggers.push("cs2.exe session reattached".to_string());
-                            }
-                        }
-                        Err(e) => triggers.push(format!("audio poll failed: {e}")),
+                        was_gone = true;
                     }
+                    Ok(None) => {}
+                    // Re-apply below so a restarted cs2.exe immediately
+                    // regains protection.
+                    Ok(Some(_)) => {
+                        session_seen = true;
+                        if was_gone {
+                            was_gone = false;
+                            triggers.push("cs2.exe session reattached".to_string());
+                        }
+                    }
+                    Err(e) => triggers.push(format!("audio poll failed: {e}")),
                 }
             }
 
@@ -249,13 +256,23 @@ pub fn start_engine<A: AudioControl>(
                         Ok(_) => applied = Some(v),
                         Err(e) => decision = format!("audio error: {e}"),
                     },
-                    Some(v) if reapply => {
+                    Some(v) if session_seen => {
                         let _ = audio.set_volume(v);
                     }
-                    None if applied.is_some() => match audio.set_volume(1.0) {
-                        Ok(_) => applied = None,
-                        Err(e) => decision = format!("audio error: {e}"),
-                    },
+                    None if applied.is_some() || (restore_pending && session_seen) => {
+                        if applied.is_none() {
+                            decision =
+                                "restore → 100% (left lowered when cs2.exe closed)".to_string();
+                        }
+                        match audio.set_volume(1.0) {
+                            // No session to restore: it closed since the last poll.
+                            Ok(found) => {
+                                applied = None;
+                                restore_pending = !found;
+                            }
+                            Err(e) => decision = format!("audio error: {e}"),
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -452,6 +469,31 @@ mod tests {
         });
         assert!(snap.log.iter().any(|e| e.trigger.contains("session reattached")));
         assert_eq!(audio.sets.lock().unwrap().last(), Some(&0.15));
+        handle.shutdown();
+    }
+
+    #[test]
+    fn volume_left_lowered_by_session_loss_is_restored_on_reattach() {
+        let audio = FakeAudio::default();
+        let (handle, rx) = start(audio.clone());
+
+        let mut flashed = alive();
+        flashed.flashed = Some(255);
+        handle.send_state(flashed);
+        wait_for(&rx, |s| s.target == Some(0.15));
+
+        audio.gone.store(true, Ordering::SeqCst);
+        wait_for(&rx, |s| s.target.is_none());
+
+        // CS2 relaunches with nothing to duck; its session still holds 15%.
+        audio.gone.store(false, Ordering::SeqCst);
+        std::thread::sleep(fast_options().poll * 2);
+        handle.send_state(alive());
+        let snap = wait_for(&rx, |s| {
+            s.log.iter().any(|e| e.trigger.contains("session reattached"))
+        });
+        assert!(snap.target.is_none());
+        assert_eq!(audio.sets.lock().unwrap().last(), Some(&1.0));
         handle.shutdown();
     }
 

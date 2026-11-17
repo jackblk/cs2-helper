@@ -35,19 +35,36 @@ pub struct GsiStatus {
     pub running: bool,
     pub port: u16,
     pub last_payload_age_ms: Option<u64>,
+    pub fresh: bool,
     /// `None` when the CS2 install is not found.
     pub cfg_path: Option<String>,
     pub cfg_installed: bool,
 }
 
+/// Payload age below which CS2 counts as running. Above the cfg's 10 s
+/// heartbeat, so an idle menu never reads as "waiting".
+const FRESH_MS: u64 = 15_000;
+
+fn payload_age_ms(g: &GsiShared) -> Option<u64> {
+    g.last_payload.map(|t| t.elapsed().as_millis() as u64)
+}
+
+pub fn is_fresh(shared: &SharedGsi) -> bool {
+    payload_age_ms(&shared.lock().unwrap()).is_some_and(|ms| ms < FRESH_MS)
+}
+
 pub fn status(shared: &SharedGsi) -> GsiStatus {
-    let g = shared.lock().unwrap();
+    // Before locking: it reads the registry and the disk, and the lock would
+    // hold up the GSI server.
     let cfg_path = install::cfg_target_path();
+    let g = shared.lock().unwrap();
+    let age = payload_age_ms(&g);
     GsiStatus {
         running: g.running,
         port: g.port,
-        last_payload_age_ms: g.last_payload.map(|t| t.elapsed().as_millis() as u64),
-        cfg_installed: cfg_path.as_deref().map(|p| p.exists()).unwrap_or(false),
+        last_payload_age_ms: age,
+        fresh: age.is_some_and(|ms| ms < FRESH_MS),
+        cfg_installed: cfg_path.as_deref().is_some_and(Path::exists),
         cfg_path: cfg_path.map(|p| p.display().to_string()),
     }
 }

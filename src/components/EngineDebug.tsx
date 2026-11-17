@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +10,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { useEngine } from "@/hooks/use-engine";
 import { useSettings } from "@/hooks/use-settings";
-import type {
-	ConfigPayload,
-	EngineSnapshot,
-	EventCfg,
-	TimedEventCfg,
-} from "@/lib/types";
+import type { ConfigPayload, EventCfg, TimedEventCfg } from "@/lib/types";
 import { pct } from "@/lib/utils";
 
 const timestamp = (atMs: number) => {
@@ -28,26 +23,18 @@ const timestamp = (atMs: number) => {
 
 function describeEvent(name: string, cfg: EventCfg | TimedEventCfg): string {
 	if (!cfg.enabled) return `${name}: off`;
-	const duration =
-		"duration_ms" in cfg ? ` for ${(cfg as TimedEventCfg).duration_ms}ms` : "";
+	const duration = "duration_ms" in cfg ? ` for ${cfg.duration_ms}ms` : "";
 	return `${name}: ${pct(cfg.volume)}${duration}`;
 }
 
 export function EngineDebug() {
-	const [snap, setSnap] = useState<EngineSnapshot | null>(null);
+	const snap = useEngine();
 	const [path, setPath] = useState("");
 	const [message, setMessage] = useState("");
 	const { adoptExternal } = useSettings();
 
 	useEffect(() => {
-		const unlisten = listen<EngineSnapshot>("engine:update", (event) => {
-			setSnap(event.payload);
-		});
-		invoke<EngineSnapshot>("engine_status").then(setSnap, () => {});
 		invoke<string>("config_path").then(setPath, () => {});
-		return () => {
-			unlisten.then((fn) => fn());
-		};
 	}, []);
 
 	const runConfigCommand = async (cmd: "reload_config" | "reset_config") => {

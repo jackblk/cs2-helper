@@ -3,14 +3,12 @@ import { SettingsSection } from "@/components/settings/section";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useLoadedSettings } from "@/hooks/use-settings";
-import { withApp } from "@/lib/settings";
+import { toggleLabel, withApp } from "@/lib/settings";
 
 export function AppSection() {
 	const { t } = useTranslation();
 	const { settings, commit } = useLoadedSettings();
 	const app = settings.app;
-	const toggled = (v: boolean, name: string) =>
-		t(v ? "common.on" : "common.off", { name });
 	return (
 		<SettingsSection title={t("app.title")}>
 			<div className="flex flex-wrap items-center gap-x-8 gap-y-2">
@@ -20,7 +18,7 @@ export function AppSection() {
 					checked={app.start_with_windows}
 					onChange={(v) =>
 						commit(
-							toggled(v, t("app.runOnStartup")),
+							toggleLabel(v, t("app.runOnStartup")),
 							withApp((a) => ({ ...a, start_with_windows: v })),
 						)
 					}
@@ -31,7 +29,7 @@ export function AppSection() {
 					checked={app.start_minimized}
 					onChange={(v) =>
 						commit(
-							toggled(v, t("app.startMinimized")),
+							toggleLabel(v, t("app.startMinimized")),
 							withApp((a) => ({ ...a, start_minimized: v })),
 						)
 					}

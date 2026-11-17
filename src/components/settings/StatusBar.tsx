@@ -9,7 +9,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { isFresh } from "@/hooks/use-gsi-status";
 import type { EngineSnapshot, GsiStatus } from "@/lib/types";
 import { pct } from "@/lib/utils";
 
@@ -27,7 +26,7 @@ export function StatusBar({
 }) {
 	const { t } = useTranslation();
 	const paused = snap.paused;
-	const fresh = isFresh(gsi);
+	const fresh = gsi.fresh;
 	const audio = paused || snap.target == null ? 1 : snap.target;
 
 	return (

@@ -30,6 +30,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { pct } from "@/lib/utils";
 
 type AudioSession = {
 	pid: number;
@@ -81,9 +82,7 @@ export function DebugPage() {
 				process: target,
 				volume,
 			});
-			setStatus(
-				`set ${target} -> ${Math.round(volume * 100)}% (${changed} session(s))`,
-			);
+			setStatus(`set ${target} -> ${pct(volume)} (${changed} session(s))`);
 		});
 
 	const getProcessVolume = () =>
@@ -91,11 +90,7 @@ export function DebugPage() {
 			const v = await invoke<number | null>("get_process_volume", {
 				process: target,
 			});
-			setStatus(
-				v == null
-					? `${target}: no session`
-					: `${target}: ${Math.round(v * 100)}%`,
-			);
+			setStatus(v == null ? `${target}: no session` : `${target}: ${pct(v)}`);
 		});
 
 	return (
@@ -152,7 +147,7 @@ export function DebugPage() {
 							/>
 						</div>
 						<div className="flex min-w-56 flex-1 flex-col gap-1.5">
-							<Label>Volume: {Math.round(volume * 100)}%</Label>
+							<Label>Volume: {pct(volume)}</Label>
 							<Slider
 								value={[volume * 100]}
 								min={0}
@@ -215,9 +210,7 @@ export function DebugPage() {
 									<TableCell className="text-right text-muted-foreground">
 										{s.pid}
 									</TableCell>
-									<TableCell className="text-right">
-										{Math.round(s.volume * 100)}%
-									</TableCell>
+									<TableCell className="text-right">{pct(s.volume)}</TableCell>
 									<TableCell className="text-right">
 										{s.muted ? (
 											<Badge variant="destructive">muted</Badge>

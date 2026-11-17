@@ -31,7 +31,7 @@ flowchart LR
 ```
 
 * **GSI:** the app writes `gamestate_integration_cs2helper.cfg` into `<CS2 install>\game\csgo\cfg` (found through the Steam registry and `libraryfolders.vdf`). CS2 then posts game state to a local server on `127.0.0.1:31211`, authenticated with a per-install token.
-* **Audio:** only the `cs2.exe` session is touched, through Windows Core Audio. Volumes are absolute targets (not relative to your current level). When several reductions overlap, the lowest one wins, and the volume always restores to 100%.
+* **Audio:** only the `cs2.exe` session is touched, through Windows Core Audio. Volumes are absolute targets (not relative to your current level). When several reductions overlap, the lowest one wins, and the volume always restores to 100%. If CS2 closes while its volume is lowered, the app puts it back to 100% the next time CS2 runs.
 * **Overlay:** a separate transparent, click-through, always-on-top window, driven by the same GSI data. No injection, memory reads or game file changes.
 
 ## Configuration

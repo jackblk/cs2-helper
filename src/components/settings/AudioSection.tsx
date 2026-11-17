@@ -5,7 +5,7 @@ import { SettingRow, SettingsSection } from "@/components/settings/section";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useLoadedSettings } from "@/hooks/use-settings";
-import { withConfig } from "@/lib/settings";
+import { toggleLabel, withConfig } from "@/lib/settings";
 import type { Config, EventCfg, TimedEventCfg } from "@/lib/types";
 import { pct } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export function AudioSection() {
 						cfg={settings.config[key]}
 						onEnabled={(v) =>
 							commit(
-								t(v ? "common.on" : "common.off", { name: label }),
+								toggleLabel(v, label),
 								patch(key, (e) => ({ ...e, enabled: v })),
 							)
 						}

@@ -70,7 +70,7 @@ When multiple reductions are active simultaneously, apply the **minimum** of the
 
 ### Session loss
 
-If the `cs2.exe` audio session disappears (game closed or crashed) while a reduction is active, discard all duck state. When a new session appears, reattach and start fresh, with no app restart needed.
+If the `cs2.exe` audio session disappears (game closed or crashed) while a reduction is active, discard all duck state. When a new session appears, reattach and start fresh, with no app restart needed. Windows remembers a session's volume, so a session that closed while lowered is set back to 100% when CS2 runs again.
 
 ### Events
 

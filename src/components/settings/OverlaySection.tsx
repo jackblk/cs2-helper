@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useLoadedSettings } from "@/hooks/use-settings";
 import { DEFAULT_OVERLAY_SCALE } from "@/lib/overlay-edit";
-import { withOverlay } from "@/lib/settings";
+import { toggleLabel, withOverlay } from "@/lib/settings";
 import { toastError } from "@/lib/toast";
 
 // Same width in both states so Edit/Done never shifts the row.
@@ -54,9 +54,7 @@ export function OverlaySection() {
 					)}
 					onClick={() =>
 						commit(
-							t(o.enabled ? "common.off" : "common.on", {
-								name: t("overlay.title"),
-							}),
+							toggleLabel(!o.enabled, t("overlay.title")),
 							withOverlay((x) => ({ ...x, enabled: !x.enabled })),
 						)
 					}
@@ -137,9 +135,7 @@ export function OverlaySection() {
 						aria-label={t("overlay.bombTimerAria")}
 						onCheckedChange={(v) =>
 							commit(
-								t(v ? "common.on" : "common.off", {
-									name: t("overlay.bombTimer"),
-								}),
+								toggleLabel(v, t("overlay.bombTimer")),
 								withOverlay((x) => ({ ...x, bomb_timer: v })),
 							)
 						}
@@ -170,9 +166,7 @@ export function OverlaySection() {
 						aria-label={t("overlay.volumeStatusAria")}
 						onCheckedChange={(v) =>
 							commit(
-								t(v ? "common.on" : "common.off", {
-									name: t("overlay.volumeStatus"),
-								}),
+								toggleLabel(v, t("overlay.volumeStatus")),
 								withOverlay((x) => ({ ...x, volume_status: v })),
 							)
 						}

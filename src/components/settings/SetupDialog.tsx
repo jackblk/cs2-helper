@@ -11,7 +11,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { isFresh } from "@/hooks/use-gsi-status";
 import { toastError } from "@/lib/toast";
 import type { GsiStatus } from "@/lib/types";
 
@@ -84,7 +83,7 @@ export function SetupDialog({
 							</p>
 						)}
 					</SetupStep>
-					<SetupStep ok={isFresh(gsi)} title={t("setup.step2")}>
+					<SetupStep ok={gsi.fresh} title={t("setup.step2")}>
 						<p className="text-sm text-muted-foreground">
 							{t("setup.restartHint")}
 						</p>
