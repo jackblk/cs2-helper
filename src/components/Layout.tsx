@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Heart, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -18,6 +18,8 @@ import { SettingsProvider } from "@/hooks/use-settings";
 import { useUpdateCheck } from "@/hooks/use-update-check";
 import { useFitWindowToContent } from "@/lib/fit-window";
 import { DOWNLOAD_PAGE_URL } from "@/lib/update-check";
+
+const DONATE_URL = "https://ko-fi.com/jackblk";
 
 // The debug page is intentionally hidden behind a triple-click on the logo.
 const DEBUG_UNLOCK_CLICKS = 3;
@@ -93,6 +95,21 @@ export function Layout() {
 										</Link>
 									</Button>
 								)}
+								<Button
+									asChild
+									variant="ghost"
+									size="sm"
+									className="text-rose-400 hover:bg-rose-400/10 hover:text-rose-400"
+								>
+									<a
+										href={DONATE_URL}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										<Heart />
+										{t("header.donate")}
+									</a>
+								</Button>
 								{version &&
 									(latest ? (
 										<Tooltip>

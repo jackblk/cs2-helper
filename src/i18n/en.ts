@@ -9,6 +9,7 @@ export const en = {
 	header: {
 		byline: "by {{author}}",
 		language: "Language",
+		donate: "Buy me a coffee",
 	},
 	update: {
 		title: "Update available: {{version}}",

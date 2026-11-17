@@ -11,6 +11,7 @@ export const vi: typeof en = {
 	header: {
 		byline: "bởi {{author}}",
 		language: "Ngôn ngữ",
+		donate: "Mời tôi ly cà phê",
 	},
 	update: {
 		title: "Có bản cập nhật: {{version}}",
